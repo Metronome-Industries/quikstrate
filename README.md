@@ -27,6 +27,14 @@ quikstrate configure --dry-run
 quikstrate configure --clean
 ```
 
+## Deployment
+
+The `SSH Key - goreleaser` in 1Password was created and added below (per [documentation](https://circleci.com/docs/github-integration/#create-additional-github-ssh-keys)):
+
+* metstrate CircleCI deploy Keys
+* metstrate GH deploy keys
+* metronome-homebrew GH deploy keys
+
 ## Links
 
 * <https://docs.substrate.tools/substrate/access/aws-cli-profiles>
