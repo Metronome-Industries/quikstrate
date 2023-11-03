@@ -2,6 +2,7 @@ version: 2.1
 orbs:
   # https://circleci.com/developer/orbs/orb/circleci/go
   go: circleci/go@1.9.0
+  # semver-orb: tv2norge/semver-orb@0.0.1
 jobs:
   test:
     executor:
@@ -28,17 +29,16 @@ jobs:
     executor:
       name: go/default
       tag: '1.21'
-    environment:
-      # Contents - Access: Read and write
-      # Metadata - Access: Read-only
-      # will be revoked after testing
-      GITHUB_TOKEN: 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
     steps:
       - checkout
       - go/load-cache:
           key: "publish"
       - go/mod-download
       - go/install-goreleaser
+      - add_ssh_keys:
+          fingerprints:
+            - "43:ed:58:fc:04:a6:f5:a9:47:c6:31:79:9e:76:e7:f7"
+      # - semver-orb/bump
       - run:
           name: git tag and push
           command: |
@@ -52,15 +52,17 @@ jobs:
 workflows:
   test-and-publish:
     jobs:
-      - test
+      # - test
+      # - semver-orb/bump
       - publish:
+          context: Goreleaser
           # TODO fix
           # requires:
           #   write:packages
           #   push to main on metronome-homebrew
-          context: PR Commenter
-          requires:
-            - test
+          # requires:
+            # - test
+            # - semver-orb/bump
           # filters:
           #   branches:
           #     only: main
