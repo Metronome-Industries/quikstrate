@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hbowron/creds/internal/creds"
+	"github.com/metronome-industries/metstrate/internal/creds"
 	"github.com/spf13/cobra"
 )
 

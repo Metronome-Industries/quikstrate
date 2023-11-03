@@ -1,4 +1,4 @@
-module github.com/hbowron/creds
+module github.com/metronome-industries/metstrate
 
 go 1.21.3
 
