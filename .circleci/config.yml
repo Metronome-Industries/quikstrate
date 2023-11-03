@@ -42,8 +42,9 @@ jobs:
       - run:
           name: git tag and push
           command: |
-            git config --global user.email "`git log --format='%ae' HEAD^!`"
-            git config --global user.name "`git log --format='%an' HEAD^!`"
+            # git config --global user.email "`git log --format='%ae' HEAD^!`"
+            # git config --global user.name "`git log --format='%an' HEAD^!`"
+            # git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf ssh://git@github.com/
             ./scripts/tag.sh
       - go/goreleaser-release:
           project-path: /home/circleci/project
