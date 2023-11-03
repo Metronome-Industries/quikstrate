@@ -5,7 +5,7 @@ scripts_dir=$(dirname $0)
 function main() {
   # TODO check if on main
   # TODO check if $CI
-  curr_tag=$(git describe || echo "0.0.0")
+  curr_tag=$(git describe --abbrev=0 --tags || echo "0.0.0")
 
   echo "Current tag: $curr_tag"
 
@@ -19,7 +19,7 @@ function main() {
 
   echo "New tag: $new_tag"
 
-  git tag $new_tag
+  git tag -a -m "version $new_tag" $new_tag
   git push origin $new_tag
 }
 
