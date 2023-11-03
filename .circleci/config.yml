@@ -34,11 +34,10 @@ jobs:
           key: "publish"
       - go/mod-download
       - go/install-goreleaser
-      # TODO fix
       - run:
           name: git tag and push
           command: |
-            echo "todo"
+            ./scripts/tag.sh
       - go/goreleaser-release:
           project-path: /home/circleci/project
           publish-release: true
