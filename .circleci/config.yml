@@ -1,5 +1,6 @@
 version: 2.1
 orbs:
+  # https://circleci.com/developer/orbs/orb/circleci/go
   go: circleci/go@1.9.0
 jobs:
   test:
@@ -10,7 +11,6 @@ jobs:
       - checkout
       - go/load-cache
       - go/mod-download
-      - go/save-cache
       - go/install-goreleaser
       - go/goreleaser-release:
           project-path: /home/circleci/project
@@ -20,6 +20,7 @@ jobs:
           command: |
             pwd
             which goreleaser
+      - go/save-cache
 
   publish:
     executor:
@@ -45,6 +46,6 @@ workflows:
           context: NPM ReadWrite
           requires:
             - test
-          filters:
-            branches:
-              only: main
+          # filters:
+          #   branches:
+          #     only: main
