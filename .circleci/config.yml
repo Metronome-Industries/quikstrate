@@ -9,7 +9,8 @@ jobs:
       tag: '1.21'
     steps:
       - checkout
-      - go/load-cache
+      - go/load-cache:
+          key: "test"
       - go/mod-download
       - go/install-goreleaser
       - go/goreleaser-release:
@@ -20,7 +21,8 @@ jobs:
           command: |
             pwd
             which goreleaser
-      - go/save-cache
+      - go/save-cache:
+          key: "test"
 
   publish:
     executor:
@@ -28,7 +30,8 @@ jobs:
       tag: '1.21'
     steps:
       - checkout
-      - go/load-cache
+      - go/load-cache:
+          key: "publish"
       - go/mod-download
       - go/install-goreleaser
       # TODO fix
@@ -39,6 +42,8 @@ jobs:
       - go/goreleaser-release:
           publish-release: true
           validate-yaml: true
+      - go/save-cache:
+          key: "publish"
 workflows:
   test-and-publish:
     jobs:
