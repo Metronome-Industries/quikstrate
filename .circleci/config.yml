@@ -12,9 +12,10 @@ jobs:
       - go/mod-download
       - go/save-cache
       - go/test:
-          covermode: atomic
+          race: false
       - go/install-goreleaser
       - go/goreleaser-release:
+          project-path: $CIRCLE_WORKING_DIRECTORY
           publish-release: false
           validate-yaml: true
   publish:
