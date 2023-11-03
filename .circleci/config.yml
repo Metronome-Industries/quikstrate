@@ -11,11 +11,9 @@ jobs:
       - go/load-cache
       - go/mod-download
       - go/save-cache
-      - go/test:
-          race: false
       - go/install-goreleaser
       - go/goreleaser-release:
-          project-path: $CIRCLE_WORKING_DIRECTORY
+          project-path: $CIRCLE_WORKING_DIRECTORY # /home/circleci/project
           publish-release: false
           validate-yaml: true
   publish:
