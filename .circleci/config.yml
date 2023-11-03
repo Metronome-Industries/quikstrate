@@ -42,8 +42,8 @@ jobs:
       - run:
           name: git tag and push
           command: |
-            git config --global user.email "engineering@getmetronome.com"
-            git config --global user.name "Metronome Engineering"
+            git config --global user.email "`git log --format='%ae' HEAD^!`"
+            git config --global user.name "`git log --format='%an' HEAD^!`"
             ./scripts/tag.sh
       - go/goreleaser-release:
           project-path: /home/circleci/project
