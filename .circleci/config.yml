@@ -28,15 +28,17 @@ jobs:
     executor:
       name: go/default
       tag: '1.21'
+    environment:
+      # Contents - Access: Read and write
+      # Metadata - Access: Read-only
+      # will be revoked after testing
+      GITHUB_TOKEN: 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
     steps:
       - checkout
       - go/load-cache:
           key: "publish"
       - go/mod-download
       - go/install-goreleaser
-      - add_ssh_keys:
-          fingerprints:
-            - "ef:9f:6d:cc:70:cc:a0:a6:56:a1:9e:74:82:76:6d:23"
       - run:
           name: git tag and push
           command: |
