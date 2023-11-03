@@ -8,9 +8,6 @@ jobs:
       name: go/default
       tag: '1.21'
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:nXVgy+7Z6so487cnhEpKNu3HSWtJeDviF4pnT+S++jw"
       - checkout
       - go/load-cache:
           key: "test"
@@ -32,14 +29,14 @@ jobs:
       name: go/default
       tag: '1.21'
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "SHA256:nXVgy+7Z6so487cnhEpKNu3HSWtJeDviF4pnT+S++jw"
       - checkout
       - go/load-cache:
           key: "publish"
       - go/mod-download
       - go/install-goreleaser
+      - add_ssh_keys:
+          fingerprints:
+            - "ef:9f:6d:cc:70:cc:a0:a6:56:a1:9e:74:82:76:6d:23"
       - run:
           name: git tag and push
           command: |
