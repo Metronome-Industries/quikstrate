@@ -13,9 +13,14 @@ jobs:
       - go/save-cache
       - go/install-goreleaser
       - go/goreleaser-release:
-          project-path: $CIRCLE_WORKING_DIRECTORY # /home/circleci/project
+          project-path: /home/circleci/project
           publish-release: false
           validate-yaml: true
+      - run:
+          command: |
+            pwd
+            which goreleaser
+
   publish:
     executor:
       name: go/default
