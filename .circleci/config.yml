@@ -1,0 +1,54 @@
+version: 2.1
+orbs:
+  # https://circleci.com/developer/orbs/orb/circleci/go
+  go: circleci/go@1.9.0
+jobs:
+  test:
+    executor:
+      name: go/default
+      tag: '1.21'
+    steps:
+      - checkout
+      - go/load-cache
+      - go/mod-download
+      - go/install-goreleaser
+      - run:
+          name: goreleaser test
+          command: |
+            goreleaser check
+            goreleaser release --snapshot --clean
+      - go/save-cache
+  publish:
+    executor:
+      name: go/default
+      tag: '1.21'
+    steps:
+      - checkout
+      - go/load-cache
+      - go/mod-download
+      - add_ssh_keys:
+          fingerprints:
+            - "43:ed:58:fc:04:a6:f5:a9:47:c6:31:79:9e:76:e7:f7" # read/write deploy key
+      - run:
+          name: git tag and push
+          command: |
+            git config --global user.email "engineering@metronome.com"
+            git config --global user.name "goreleaser"
+            ./scripts/tag.sh
+      - go/install-goreleaser
+      - run:
+          name: goreleaser release
+          command: |
+            goreleaser release --clean
+      - go/save-cache
+workflows:
+  test-and-publish:
+    jobs:
+      - test
+      - publish:
+          context: Goreleaser
+          requires:
+            - test
+          filters:
+            branches:
+              only: main

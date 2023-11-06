@@ -35,4 +35,4 @@ brews:
       - name: awscli
         type: optional
     download_strategy: GitHubPrivateRepoAssetDownloadStrategy
-    custom_require: "extensions/custom_download_strategy"
+    custom_require: "../extensions/custom_download_strategy"

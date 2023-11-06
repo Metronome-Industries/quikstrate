@@ -7,7 +7,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "creds",
+	Use:   "quikstrate -h",
 	Short: "A substrate wrapper",
 	CompletionOptions: cobra.CompletionOptions{
 		DisableDefaultCmd: true,

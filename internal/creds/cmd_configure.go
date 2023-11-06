@@ -108,9 +108,6 @@ func configureKubeConfig(environments, domains []string) error {
 			}
 		}
 	}
-	if !configDryrun {
-		script.Exec("kubectl config unset current-context").Stdout()
-	}
 	return nil
 }
 func getenv(key, fallback string) string {
