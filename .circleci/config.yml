@@ -28,7 +28,7 @@ jobs:
       - go/mod-download
       - add_ssh_keys:
           fingerprints:
-            - "43:ed:58:fc:04:a6:f5:a9:47:c6:31:79:9e:76:e7:f7"
+            - "43:ed:58:fc:04:a6:f5:a9:47:c6:31:79:9e:76:e7:f7" # read/write deploy key
       - run:
           name: git tag and push
           command: |
