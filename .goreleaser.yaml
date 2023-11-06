@@ -25,11 +25,7 @@ brews:
   - repository:
       owner: Metronome-Industries
       name: homebrew-metronome
-      branch: "{{.ProjectName}}-{{.Version}}"
-      pull_request:
-        enabled: true
-        base:
-          branch: main
+      branch: main
     folder: Formula
     homepage: https://github.com/Metronome-Industries/{{ .ProjectName }} 
     dependencies:
