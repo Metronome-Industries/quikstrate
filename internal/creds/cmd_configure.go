@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -34,8 +35,12 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	domains := strings.Split(cmd.Flag("domains").Value.String(), ",")
 	binaryPath, err = exec.LookPath(binaryName)
 	if err != nil {
-		logf("could not find %s binary in path...", binaryName)
-		os.Exit(1)
+		if path.Base(os.Args[0]) != "main" {
+			logf("could not find %s binary in path...", binaryName)
+			os.Exit(1)
+		}
+		// don't worry about fullpath if running from go run
+		binaryPath = binaryName
 	}
 
 	err = configureAWSConfig(environments, domains)
