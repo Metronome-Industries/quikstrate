@@ -46,14 +46,8 @@ jobs:
       - run:
           name: goreleaser release
           command: |
-            pwd
-            env
             goreleaser check
             goreleaser release --clean
-      # - go/goreleaser-release:
-      #     project-path: /home/circleci/project
-      #     publish-release: true
-      #     validate-yaml: true
       - go/save-cache:
           key: "publish"
 workflows:
@@ -62,12 +56,8 @@ workflows:
       - test
       - publish:
           context: Goreleaser
-          # TODO fix
-          # requires:
-          #   write:packages
-          #   push to main on metronome-homebrew
-          # requires:
-            # - test
-          # filters:
-          #   branches:
-          #     only: main
+          requires:
+            - test
+          filters:
+            branches:
+              only: main
