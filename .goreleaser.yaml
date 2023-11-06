@@ -35,6 +35,7 @@ brews:
     dependencies:
       - name: metronome-industries/metronome/substrate-tools
       - name: kubectl
+      - name: kubectx
       - name: awscli
         type: optional
     download_strategy: GitHubPrivateRepoAssetDownloadStrategy
