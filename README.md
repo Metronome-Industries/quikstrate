@@ -1,6 +1,6 @@
-# metstrate
+# quikstrate
 
-Metronome wrapper of `substrate` CLI to cache credentials and configure `aws` and `kubectl` config files.
+Metronome wrapper of `substrate` CLI to cache credentials for faster authentication and configure `aws` and `kubectl` config files for easier profile and context switching.
 
 ## TODO on Fedex Friday
 
@@ -13,18 +13,18 @@ Metronome wrapper of `substrate` CLI to cache credentials and configure `aws` an
 
 ```bash
 export HOMEBREW_GITHUB_API_TOKEN=$GITHUB_TOKEN
-brew install metstrate
+brew install quikstrate
 ```
 
 ## Configuring AWS CLI and K8S CLI
 
 ```bash
 # to see the usage and dry run
-metstrate configure --help
-metstrate configure --dry-run
+quikstrate configure --help
+quikstrate configure --dry-run
 
 # to remove ~/.aws/config and ~/.kube/config first
-metstrate configure --clean
+quikstrate configure --clean
 ```
 
 ## Links

@@ -21,7 +21,7 @@ var (
 	configClean  bool
 	awsRegion    string
 
-	binaryName = "metstrate"
+	binaryName = "quikstrate"
 	binaryPath string
 )
 

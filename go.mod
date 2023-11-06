@@ -1,4 +1,4 @@
-module github.com/metronome-industries/metstrate
+module github.com/metronome-industries/quikstrate
 
 go 1.21.3
 

@@ -1,6 +1,6 @@
 package main
 
-import "github.com/metronome-industries/metstrate/cmd"
+import "github.com/metronome-industries/quikstrate/cmd"
 
 func main() {
 	cmd.Execute()

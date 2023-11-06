@@ -6,7 +6,7 @@ package cmd
 import (
 	"os"
 
-	"github.com/metronome-industries/metstrate/internal/creds"
+	"github.com/metronome-industries/quikstrate/internal/creds"
 	"github.com/spf13/cobra"
 )
 
