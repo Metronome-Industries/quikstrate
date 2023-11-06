@@ -20,7 +20,9 @@ var (
 	configDryrun bool
 	configClean  bool
 	awsRegion    string
-	binPath      string
+
+	binaryName = "metstrate"
+	binaryPath string
 )
 
 func ConfigureCmd(cmd *cobra.Command, args []string) {
@@ -30,9 +32,9 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	awsRegion = cmd.Flag("aws-region").Value.String()
 	environments := strings.Split(cmd.Flag("environments").Value.String(), ",")
 	domains := strings.Split(cmd.Flag("domains").Value.String(), ",")
-	binPath, err = exec.LookPath("creds")
+	binaryPath, err = exec.LookPath(binaryName)
 	if err != nil {
-		log("could not find creds binary in path...")
+		logf("could not find %s binary in path...", binaryName)
 		os.Exit(1)
 	}
 
@@ -56,14 +58,14 @@ func configureAWSConfig(environments, domains []string) error {
 		os.Remove(awsConfigFile)
 	}
 
-	setAWSConfigValue("default", "credential_process", fmt.Sprintf("\"%s credentials -f json\"", binPath))
+	setAWSConfigValue("default", "credential_process", fmt.Sprintf("\"%s credentials -f json\"", binaryPath))
 	setAWSConfigValue("default", "region", awsRegion)
 	for _, environment := range environments {
 		for _, domain := range domains {
 			profile := fmt.Sprintf("%s-%s", environment, domain)
 			logf("Configuring profile %s\n", profile)
 
-			setAWSConfigValue(profile, "credential_process", fmt.Sprintf("\"%s assume -e %s -d %s -f json\"", binPath, environment, domain))
+			setAWSConfigValue(profile, "credential_process", fmt.Sprintf("\"%s assume -e %s -d %s -f json\"", binaryPath, environment, domain))
 			setAWSConfigValue(profile, "region", awsRegion)
 		}
 	}
