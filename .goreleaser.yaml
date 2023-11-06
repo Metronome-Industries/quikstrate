@@ -1,4 +1,4 @@
-project_name: creds
+project_name: quikstrate
 before:
   hooks:
     - go mod tidy
