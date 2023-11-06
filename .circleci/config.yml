@@ -41,13 +41,19 @@ jobs:
           command: |
             git config --global user.email "engineering@metronome.com"
             git config --global user.name "goreleaser"
-            # git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf ssh://git@github.com/
             ./scripts/tag.sh
       - go/install-goreleaser
-      - go/goreleaser-release:
-          project-path: /home/circleci/project
-          publish-release: true
-          validate-yaml: true
+      - run:
+          name: goreleaser release
+          command: |
+            pwd
+            env
+            goreleaser check
+            goreleaser release --clean
+      # - go/goreleaser-release:
+      #     project-path: /home/circleci/project
+      #     publish-release: true
+      #     validate-yaml: true
       - go/save-cache:
           key: "publish"
 workflows:
