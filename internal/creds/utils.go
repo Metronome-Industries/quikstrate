@@ -12,7 +12,7 @@ import (
 
 var (
 	home, _        = os.UserHomeDir()
-	CredsDir       = filepath.Join(home, "/.metronome/creds")
+	CredsDir       = filepath.Join(home, fmt.Sprintf("/.metronome/%s", binaryName))
 	EnvironmentMap = map[string]Environment{
 		"staging": {
 			Name:           "staging",

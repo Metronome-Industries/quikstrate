@@ -3,8 +3,6 @@
 scripts_dir=$(dirname $0)
 
 function main() {
-  # TODO check if on main
-  # TODO check if $CI
   curr_tag=$(git describe --abbrev=0 --tags || echo "0.0.0")
 
   echo "Current tag: $curr_tag"
