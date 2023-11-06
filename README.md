@@ -31,8 +31,8 @@ quikstrate configure --clean
 
 The `SSH Key - goreleaser` in 1Password was created and added below (per [documentation](https://circleci.com/docs/github-integration/#create-additional-github-ssh-keys)):
 
-* metstrate CircleCI deploy Keys
-* metstrate GH deploy keys
+* quikstrate CircleCI deploy Keys
+* quikstrate GH deploy keys
 * metronome-homebrew GH deploy keys
 
 ## Links
