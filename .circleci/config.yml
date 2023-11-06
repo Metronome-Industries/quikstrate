@@ -2,7 +2,6 @@ version: 2.1
 orbs:
   # https://circleci.com/developer/orbs/orb/circleci/go
   go: circleci/go@1.9.0
-  # semver-orb: tv2norge/semver-orb@0.0.1
 jobs:
   test:
     executor:
@@ -37,7 +36,6 @@ jobs:
       - add_ssh_keys:
           fingerprints:
             - "43:ed:58:fc:04:a6:f5:a9:47:c6:31:79:9e:76:e7:f7"
-      # - semver-orb/bump
       - run:
           name: git tag and push
           command: |
@@ -55,8 +53,7 @@ jobs:
 workflows:
   test-and-publish:
     jobs:
-      # - test
-      # - semver-orb/bump
+      - test
       - publish:
           context: Goreleaser
           # TODO fix
@@ -65,7 +62,6 @@ workflows:
           #   push to main on metronome-homebrew
           # requires:
             # - test
-            # - semver-orb/bump
           # filters:
           #   branches:
           #     only: main
