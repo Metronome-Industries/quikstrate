@@ -36,14 +36,10 @@ jobs:
             git config --global user.name "goreleaser"
             ./scripts/tag.sh
       - go/install-goreleaser
-      - go/goreleaser-release:
-          project-path: /home/circleci/project
-          publish-release: true
-          github-token: $GITHUB_TOKEN
-      # - run:
-      #     name: goreleaser release
-      #     command: |
-      #       goreleaser release --clean
+      - run:
+          name: goreleaser release
+          command: |
+            goreleaser release --clean
       - go/save-cache
 workflows:
   test-and-publish:
@@ -51,8 +47,8 @@ workflows:
       - test
       - publish:
           context: Goreleaser
-          # requires:
-          #   - test
+          requires:
+            - test
           # filters:
           #   branches:
           #     only: main
