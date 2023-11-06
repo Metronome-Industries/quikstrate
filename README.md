@@ -2,13 +2,6 @@
 
 Metronome wrapper of `substrate` CLI to cache credentials for faster authentication and configure `aws` and `kubectl` config files for easier profile and context switching.
 
-## TODO on Fedex Friday
-
-* make installable via brew
-* add force flag to overwrite creds
-* add whoami
-  * get the human-friendly account name from cached accounts file
-
 ## Installing
 
 ```bash
@@ -30,13 +23,12 @@ quikstrate credentials
 quikstrate configure
 ```
 
+Under the hood `quikstrate` is caching and reusing the credentials returned by substrate in `~/.metronome/quikstrate/`
+
 ## Deployment
 
-The `SSH Key - goreleaser` in 1Password was created and added below (per [documentation](https://circleci.com/docs/github-integration/#create-additional-github-ssh-keys)):
-
-* quikstrate CircleCI deploy Keys
-* quikstrate GH deploy keys
-* metronome-homebrew GH deploy keys
+The `SSH Key - goreleaser` in 1Password was created and added (per [documentation](https://circleci.com/docs/github-integration/#create-additional-github-ssh-keys)) as a Github deploy key with write access and a CircleCI deploy key.  The CircleCI `goreleaser` context contains a classic GITHUB_TOKEN with `delete:packages, repo, write:packages` permissions
+for publishing to the `metronome-industries/homebrew-metronome` tap.
 
 ## Links
 
@@ -45,3 +37,10 @@ The `SSH Key - goreleaser` in 1Password was created and added below (per [docume
 * <https://github.com/bitfield/script>
 * <https://github.com/aws/aws-sdk-go-v2>
 * <https://goreleaser.com/>
+
+## TODOs
+
+* add force flag to overwrite creds
+* add whoami
+  * get the human-friendly account name from cached accounts file
+* support major/minor version bumps
