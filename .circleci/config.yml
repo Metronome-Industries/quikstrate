@@ -34,7 +34,6 @@ jobs:
       - go/load-cache:
           key: "publish"
       - go/mod-download
-      - go/install-goreleaser
       - add_ssh_keys:
           fingerprints:
             - "43:ed:58:fc:04:a6:f5:a9:47:c6:31:79:9e:76:e7:f7"
@@ -42,10 +41,11 @@ jobs:
       - run:
           name: git tag and push
           command: |
-            # git config --global user.email "`git log --format='%ae' HEAD^!`"
+            git config --global user.email "engineering@metronome.com"
             # git config --global user.name "`git log --format='%an' HEAD^!`"
             # git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf ssh://git@github.com/
             ./scripts/tag.sh
+      - go/install-goreleaser
       - go/goreleaser-release:
           project-path: /home/circleci/project
           publish-release: true
