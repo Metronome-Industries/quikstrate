@@ -12,7 +12,7 @@ import (
 
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
-	Short: "Removes all credential files",
+	Short: "Removes all quikstrate caches.",
 	Run: func(cmd *cobra.Command, args []string) {
 		os.RemoveAll(creds.CredsDir)
 	},

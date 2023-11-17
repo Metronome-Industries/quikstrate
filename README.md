@@ -40,7 +40,6 @@ for publishing to the `metronome-industries/homebrew-metronome` tap.
 
 ## TODOs
 
-* add force flag to overwrite creds
 * add whoami
   * get the human-friendly account name from cached accounts file
-* support major/minor version bumps
+* configure kubeconfig to ignore AWS_* environment variables

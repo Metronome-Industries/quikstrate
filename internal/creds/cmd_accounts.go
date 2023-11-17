@@ -16,9 +16,11 @@ func AccountsCmd(cmd *cobra.Command, args []string) {
 	format := cmd.Flag("format").Value.String()
 	file := filepath.Join(CredsDir, "accounts.json")
 
-	accountList, _ := readAccountsFile(file)
+	accountList, err := readAccountsFile(file)
+	if err != nil {
+		log("unable to read cached file, calling substrate...")
+	}
 
-	var err error
 	if len(accountList.Accounts) == 0 {
 		accountList, err = refreshAccounts(file)
 		if err != nil {
@@ -40,7 +42,11 @@ func refreshAccounts(file string) (accountList AccountList, err error) {
 		return
 	}
 
-	err = json.Unmarshal(byteValue, &accountList.Accounts)
+	if err = json.Unmarshal(byteValue, &accountList.Accounts); err != nil {
+		return
+	}
+
+	err = writeAccountsFile(file, accountList)
 	return
 }
 
@@ -56,8 +62,22 @@ func readAccountsFile(file string) (accountList AccountList, err error) {
 		return
 	}
 
-	err = json.Unmarshal(byteValue, &accountList.Accounts)
+	err = json.Unmarshal(byteValue, &accountList)
 	return
+}
+
+func writeAccountsFile(file string, accountList AccountList) error {
+	jsonData, err := json.MarshalIndent(accountList, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(file, jsonData, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type Account struct {

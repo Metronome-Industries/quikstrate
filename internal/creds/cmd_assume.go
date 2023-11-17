@@ -8,6 +8,8 @@ import (
 
 func AssumeCmd(cmd *cobra.Command, args []string) {
 	format := cmd.Flag("format").Value.String()
+	force := cmd.Flag("force").Value.String()
+
 	roleData, ok := NewRoleData(cmd.Flag("env").Value.String(), cmd.Flag("domain").Value.String(), cmd.Flag("quality").Value.String(), cmd.Flag("role").Value.String())
 	if !ok {
 		cmd.Usage()
@@ -21,7 +23,13 @@ func AssumeCmd(cmd *cobra.Command, args []string) {
 	}
 
 	defaultCreds.SetEnv()
-	creds, err := refreshCredentials(roleData, roleData.GetFilename())
+
+	var creds Credentials
+	if force == "true" {
+		creds, err = getAndWriteCredentials(roleData, roleData.GetFilename())
+	} else {
+		creds, err = refreshCredentials(roleData, roleData.GetFilename())
+	}
 	if err != nil {
 		log(err)
 		os.Exit(1)
