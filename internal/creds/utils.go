@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	home, _        = os.UserHomeDir()
-	CredsDir       = filepath.Join(home, fmt.Sprintf("/.metronome/%s", binaryName))
-	EnvironmentMap = map[string]Environment{
+	home, _          = os.UserHomeDir()
+	CredsDir         = filepath.Join(home, fmt.Sprintf("/.%s", binaryName))
+	DefaultCredsFile = filepath.Join(CredsDir, "credentials.json")
+	EnvironmentMap   = map[string]Environment{
 		"staging": {
 			Name:           "staging",
 			Aliases:        []string{"staging", "stg"},

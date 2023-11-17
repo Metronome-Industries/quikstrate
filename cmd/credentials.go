@@ -6,13 +6,19 @@ import (
 )
 
 var credentialsCmd = &cobra.Command{
-	Use:    "credentials",
-	Short:  "A brief description of your command",
+	Use:   "credentials",
+	Short: "Return cached credentials, if expired fetch and cache new ones",
+	Long: `The quikstrate credentials command maps 1:1 to the substrate credentials command.
+The only difference in usage is the "--force" flag, which will make quikstrate fetch and cache new credentials everytime.
+
+It's recommended to add the following alias to your shell profile (eg. ~/.zshrc):
+alias creds="eval \$(quikstrate credentials)"`,
 	Run:    creds.CredentialsCmd,
 	PreRun: creds.PreRunCmd,
 }
 
 func init() {
 	credentialsCmd.Flags().StringP("format", "f", "export", "substrate environment")
+	credentialsCmd.Flags().Bool("force", false, "always fetch new credentials")
 	rootCmd.AddCommand(credentialsCmd)
 }
