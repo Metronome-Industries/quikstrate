@@ -1,6 +1,8 @@
 # quikstrate
 
-Metronome wrapper of `substrate` CLI to cache credentials for faster authentication and configure `aws` and `kubectl` config files for easier profile and context switching.
+Wrapper of `substrate` CLI to cache credentials for faster authentication and configure `aws` and `kubectl` config files for easier profile and context switching.
+
+Under the hood `quikstrate` is caching and reusing the credentials returned by substrate in `~/.quikstrate/`
 
 ## Installing
 
@@ -8,22 +10,22 @@ Metronome wrapper of `substrate` CLI to cache credentials for faster authenticat
 brew update
 export HOMEBREW_GITHUB_API_TOKEN=$GITHUB_TOKEN
 brew install metronome-industries/metronome/quikstrate
-
-# view usage
-quikstrate -h
 ```
 
 ## Usage
 
+Run the command with `-h` or `--help` for detailed usage statements!
+
 ```bash
-# same as `substrate credentials` but ~faster~
+# view usage
+quikstrate -h
+
+# same as `substrate credentials` but ~quicker~ (run it twice to see the difference)
 quikstrate credentials
 
 # updates ~/.aws/config and ~/.kube/config
 quikstrate configure
 ```
-
-Under the hood `quikstrate` is caching and reusing the credentials returned by substrate in `~/.metronome/quikstrate/`
 
 ## Deployment
 
