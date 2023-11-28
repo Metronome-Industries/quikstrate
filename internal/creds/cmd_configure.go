@@ -112,12 +112,11 @@ func configureKubeConfig(environments, domains []string) error {
 			for _, v := range []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"} {
 				cmd := fmt.Sprintf("kubectl config set-credentials %s-%s --exec-env %s=\"\"", environment, cluster.Name, v)
 				if configDryrun {
-					log(cmd)
+					log.Print(cmd)
 				} else {
 					_, err := script.Exec(cmd).Stdout()
 					if err != nil {
-						log(err)
-						os.Exit(1)
+						log.Fatal(err)
 					}
 				}
 			}
