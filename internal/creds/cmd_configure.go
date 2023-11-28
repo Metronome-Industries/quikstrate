@@ -1,7 +1,6 @@
 package creds
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -150,10 +149,10 @@ func checkConfig(environments, domains []string) error {
 	// simple ~/.aws/config check, greps for quikstrate string
 	out, err := script.IfExists(awsConfigFile).Exec("cat " + awsConfigFile).Match(binaryName).String()
 	if err != nil {
-		return errors.New(fmt.Sprintf("%s doesn't exist", awsConfigFile))
+		return fmt.Errorf("%s doesn't exist", awsConfigFile)
 	}
 	if strings.TrimSpace(out) == "" {
-		return errors.New(fmt.Sprintf("%s doesn't call %s", awsConfigFile, binaryName))
+		return fmt.Errorf("%s doesn't call %s", awsConfigFile, binaryName)
 	}
 
 	// simple ~/.kube/config check, validates contexts and users exist
@@ -169,10 +168,10 @@ func checkConfig(environments, domains []string) error {
 			clusterName := fmt.Sprintf("%s-%s", environment, cluster.Name)
 
 			if _, ok := config.Contexts[clusterName]; !ok {
-				return errors.New(fmt.Sprintf("%s doesn't contain context %s", kubeConfigFile, clusterName))
+				return fmt.Errorf("%s doesn't contain context %s", kubeConfigFile, clusterName)
 			}
 			if _, ok := config.AuthInfos[clusterName]; !ok {
-				return errors.New(fmt.Sprintf("%s doesn't contain user %s", kubeConfigFile, clusterName))
+				return fmt.Errorf("%s doesn't contain user %s", kubeConfigFile, clusterName)
 			}
 		}
 	}
