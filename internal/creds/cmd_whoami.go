@@ -6,12 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 )
+
+var assumedRoleRegex = regexp.MustCompile("arn:aws:sts::([a-z0-9]+):assumed-role/(.+?)/(.+)")
 
 func WhoamiCmd(cmd *cobra.Command, args []string) {
 	format := cmd.Flag("format").Value.String()
@@ -83,22 +87,20 @@ func getCallerIdentity(ctx context.Context) (callerIdentity, error) {
 	}
 
 	client := sts.NewFromConfig(cfg)
-	_, err = client.GetCallerIdentity(context.TODO(), &sts.GetCallerIdentityInput{})
+	out, err := client.GetCallerIdentity(context.TODO(), &sts.GetCallerIdentityInput{})
 	if err != nil {
 		return callerIdentity{}, nil
 	}
 
-	// log(aws.ToString(out.Account))
-	// log(aws.ToString(out.Arn))
-	// log(aws.ToString(out.UserId))
-
-	// TODO parse callerIdentity from Arn
-	// arn:aws:sts::666642175330:assumed-role/Administrator/harry@metronome.com
+	matches := assumedRoleRegex.FindStringSubmatch(aws.ToString(out.Arn))
+	if len(matches) != 4 {
+		return callerIdentity{}, fmt.Errorf("Unable to parse caller identity from arn: %s", aws.ToString(out.Arn))
+	}
 
 	return callerIdentity{
-		Account: "008444403661",
-		Role:    "Administrator",
-		User:    "harry@metronome.com",
+		Account: matches[1],
+		Role:    matches[2],
+		User:    matches[3],
 	}, nil
 }
 
