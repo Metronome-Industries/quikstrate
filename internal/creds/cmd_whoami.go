@@ -104,22 +104,16 @@ func getCallerIdentity(ctx context.Context) (callerIdentity, error) {
 func whoami(ci callerIdentity, al AccountList) (whoamiOutput, error) {
 	for _, account := range al.Accounts {
 		if account.Id == ci.Account {
-			out := whoamiOutput{
+			return whoamiOutput{
 				AccountName: account.Name,
 				Role:        ci.Role,
 				User:        ci.User,
 				AccountID:   ci.Account,
-			}
-			if val, ok := account.Tags["Environment"]; ok {
-				out.Environment = val
-			}
-			if val, ok := account.Tags["Domain"]; ok {
-				out.Domain = val
-			}
-			if val, ok := account.Tags["Quality"]; ok {
-				out.Quality = val
-			}
-			return out, nil
+				// optional values
+				Environment: account.Tags["Environment"],
+				Domain:      account.Tags["Domain"],
+				Quality:     account.Tags["Quality"],
+			}, nil
 		}
 	}
 	return whoamiOutput{}, fmt.Errorf("No matching account found for %+v", ci)
