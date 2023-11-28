@@ -2,6 +2,7 @@ package creds
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,18 +65,9 @@ func (r RoleData) GetFilename() string {
 	return filepath.Join(CredsDir, strings.ToLower(fmt.Sprintf("%s-%s-%s-%s.json", r.Environment, r.Domain, r.Quality, r.Role)))
 }
 
-func log(args ...any) {
-	fmt.Fprintln(os.Stderr, args...)
-}
-
-func logf(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, format, args...)
-}
-
 func ensureAWSEnvSet() {
 	if os.Getenv("AWS_ACCESS_KEY_ID") == "" || os.Getenv("AWS_SECRET_ACCESS_KEY") == "" || os.Getenv("AWS_SESSION_TOKEN") == "" {
-		log("AWS credentials not set")
-		os.Exit(1)
+		log.Fatal("AWS credentials not set")
 	}
 }
 

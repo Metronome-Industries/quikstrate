@@ -2,6 +2,7 @@ package creds
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -36,8 +37,7 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	binaryPath, err = exec.LookPath(binaryName)
 	if err != nil {
 		if path.Base(os.Args[0]) != "main" {
-			logf("could not find %s binary in path...", binaryName)
-			os.Exit(1)
+			log.Fatalf("could not find %s binary in path...", binaryName)
 		}
 		// don't worry about fullpath if running from go run
 		binaryPath = binaryName
@@ -45,21 +45,19 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 
 	err = configureAWSConfig(environments, domains)
 	if err != nil {
-		log(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	err = configureKubeConfig(environments, domains)
 	if err != nil {
-		log(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 }
 
 func configureAWSConfig(environments, domains []string) error {
-	log("\nConfiguring aws config")
+	log.Print("\nConfiguring aws config")
 	if configClean {
-		log("Removing existing aws config")
+		log.Print("Removing existing aws config")
 		os.Remove(awsConfigFile)
 	}
 
@@ -68,7 +66,7 @@ func configureAWSConfig(environments, domains []string) error {
 	for _, environment := range environments {
 		for _, domain := range domains {
 			profile := fmt.Sprintf("%s-%s", environment, domain)
-			logf("Configuring profile %s\n", profile)
+			log.Printf("Configuring profile %s\n", profile)
 
 			setAWSConfigValue(profile, "credential_process", fmt.Sprintf("\"%s assume -e %s -d %s -f json\"", binaryPath, environment, domain))
 			setAWSConfigValue(profile, "region", awsRegion)
@@ -80,16 +78,16 @@ func configureAWSConfig(environments, domains []string) error {
 func setAWSConfigValue(profile, key, value string) {
 	cmd := fmt.Sprintf("aws configure set profile.%s.%s %s", profile, key, value)
 	if configDryrun {
-		log(cmd)
+		log.Print(cmd)
 	} else {
 		script.Exec(fmt.Sprintf("aws configure set profile.%s.%s %s", profile, key, value)).Stdout()
 	}
 }
 
 func configureKubeConfig(environments, domains []string) error {
-	log("\nConfiguring kubeconfig")
+	log.Print("\nConfiguring kubeconfig")
 	if configClean {
-		log("Removing existing kubeconfig")
+		log.Print("Removing existing kubeconfig")
 		os.Remove(kubectlConfigFile)
 	}
 	for _, environment := range environments {
@@ -101,14 +99,13 @@ func configureKubeConfig(environments, domains []string) error {
 			// aws eks update-config
 			cmd := fmt.Sprintf("aws eks update-kubeconfig --alias %[1]s-%[3]s --name %[3]s --profile %[1]s-%[2]s", environment, cluster.Domain, cluster.Name)
 			if configDryrun {
-				logf("export AWS_PROFILE=%s\n", fmt.Sprintf("%s-%s", environment, cluster.Domain))
-				log(cmd)
+				log.Printf("export AWS_PROFILE=%s\n", fmt.Sprintf("%s-%s", environment, cluster.Domain))
+				log.Print(cmd)
 			} else {
 				os.Setenv("AWS_PROFILE", fmt.Sprintf("%s-%s", environment, cluster.Domain))
 				_, err := script.Exec(cmd).Stdout()
 				if err != nil {
-					log(err)
-					os.Exit(1)
+					log.Fatal(err)
 				}
 			}
 		}

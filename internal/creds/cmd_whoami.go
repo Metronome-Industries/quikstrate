@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 
@@ -22,20 +23,17 @@ func WhoamiCmd(cmd *cobra.Command, args []string) {
 
 	accountList, err := getAccountList()
 	if err != nil {
-		log("Unable to retrieve account information:", err.Error())
-		os.Exit(1)
+		log.Fatal("Unable to retrieve account information:", err.Error())
 	}
 
 	callerIdentity, err := getCallerIdentity(context.TODO())
 	if err != nil {
-		log("Unable to retrieve aws identity:", err.Error())
-		os.Exit(1)
+		log.Fatal("Unable to retrieve aws identity:", err.Error())
 	}
 
 	out, err := whoami(callerIdentity, accountList)
 	if err != nil {
-		log(err.Error())
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	out.Print(format)

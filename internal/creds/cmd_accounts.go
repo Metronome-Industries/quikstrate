@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -19,8 +20,7 @@ func AccountsCmd(cmd *cobra.Command, args []string) {
 
 	accountList, err := getAccountList()
 	if err != nil {
-		log("Unable to retrieve account information:", err.Error())
-		os.Exit(1)
+		log.Fatal("Unable to retrieve account information:", err.Error())
 	}
 	accountList.Print(format)
 }
@@ -28,7 +28,7 @@ func AccountsCmd(cmd *cobra.Command, args []string) {
 func getAccountList() (accountList AccountList, err error) {
 	accountList, err = readAccountsFile(accountsFile)
 	if err != nil {
-		log("unable to read cached file, calling substrate...")
+		log.Fatal("unable to read cached file, calling substrate...")
 		accountList, err = refreshAccounts(accountsFile)
 	}
 	return
