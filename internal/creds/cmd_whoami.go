@@ -3,7 +3,6 @@ package creds
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -123,5 +122,5 @@ func whoami(ci callerIdentity, al AccountList) (whoamiOutput, error) {
 			return out, nil
 		}
 	}
-	return whoamiOutput{}, errors.New(fmt.Sprintf("No matching account found for %+v", ci))
+	return whoamiOutput{}, fmt.Errorf("No matching account found for %+v", ci)
 }
