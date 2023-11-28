@@ -1,7 +1,7 @@
 package creds
 
 import (
-	"os"
+	"log"
 
 	"github.com/spf13/cobra"
 )
@@ -18,8 +18,7 @@ func CredentialsCmd(cmd *cobra.Command, args []string) {
 		creds, err = getDefaultCredentials()
 	}
 	if err != nil {
-		log(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 	creds.Print(format)
 }

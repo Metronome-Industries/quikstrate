@@ -42,6 +42,5 @@ for publishing to the `metronome-industries/homebrew-metronome` tap.
 
 ## TODOs
 
-* add whoami
-  * get the human-friendly account name from cached accounts file
-* configure kubeconfig to ignore AWS_* environment variables
+1. command to ensure kubeconfig/aws config files are correct
+2. configure kubeconfig to ignore AWS_* environment variables

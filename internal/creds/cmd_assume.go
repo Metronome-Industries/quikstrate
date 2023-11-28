@@ -1,6 +1,7 @@
 package creds
 
 import (
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -18,8 +19,7 @@ func AssumeCmd(cmd *cobra.Command, args []string) {
 
 	defaultCreds, err := getDefaultCredentials()
 	if err != nil {
-		log(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	defaultCreds.SetEnv()
@@ -31,8 +31,7 @@ func AssumeCmd(cmd *cobra.Command, args []string) {
 		creds, err = refreshCredentials(roleData, roleData.GetFilename())
 	}
 	if err != nil {
-		log(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	creds.Print(format)

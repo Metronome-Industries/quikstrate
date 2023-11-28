@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -12,22 +13,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var accountsFile = filepath.Join(CredsDir, "accounts.json")
+
 func AccountsCmd(cmd *cobra.Command, args []string) {
 	format := cmd.Flag("format").Value.String()
-	file := filepath.Join(CredsDir, "accounts.json")
 
-	accountList, err := readAccountsFile(file)
+	accountList, err := getAccountList()
 	if err != nil {
-		log("unable to read cached file, calling substrate...")
-	}
-
-	if len(accountList.Accounts) == 0 {
-		accountList, err = refreshAccounts(file)
-		if err != nil {
-			panic(err)
-		}
+		log.Fatal("Unable to retrieve account information:", err.Error())
 	}
 	accountList.Print(format)
+}
+
+func getAccountList() (accountList AccountList, err error) {
+	accountList, err = readAccountsFile(accountsFile)
+	if err != nil {
+		log.Print("unable to read cached file, calling substrate...")
+		accountList, err = refreshAccounts(accountsFile)
+	}
+	return
 }
 
 func refreshAccounts(file string) (accountList AccountList, err error) {

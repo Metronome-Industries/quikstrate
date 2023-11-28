@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -21,4 +22,6 @@ func Execute() {
 	}
 }
 
-func init() {}
+func init() {
+	log.SetFlags(0)
+}
