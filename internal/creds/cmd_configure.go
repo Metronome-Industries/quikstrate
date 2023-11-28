@@ -50,10 +50,9 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	if configCheck {
 		err := checkConfig(environments, domains)
 		if err != nil {
-			log("quikstrate configure not run...\n", err)
-			os.Exit(1)
+			log.Fatal("quikstrate configure not run...\n", err)
 		}
-		log("quikstrate configured correctly...")
+		log.Print("quikstrate configured correctly...")
 		os.Exit(0)
 	}
 
