@@ -30,8 +30,9 @@ var configureCmd = &cobra.Command{
 
 func init() {
 	configureCmd.Flags().BoolP("clean", "c", false, "removes existing config files before configuring")
+	configureCmd.Flags().Bool("check", false, "checks if this command has been run before")
 	configureCmd.Flags().BoolP("dryrun", "d", false, "removes existing config files before configuring")
-	configureCmd.MarkFlagsMutuallyExclusive("clean", "dryrun")
+	configureCmd.MarkFlagsMutuallyExclusive("clean", "dryrun", "check")
 	configureCmd.Flags().String("aws-region", "us-west-2", "aws region to configure")
 	var defaultEnvs []string
 	for _, env := range creds.EnvironmentMap {

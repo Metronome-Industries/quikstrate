@@ -13,11 +13,12 @@ import (
 
 	"github.com/bitfield/script"
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 var (
-	awsConfigFile     string = getenv("AWS_CONFIG_FILE", filepath.Join(home, ".aws/config"))
-	kubectlConfigFile string = getenv("KUBECONFIG", filepath.Join(home, ".kube/config"))
+	awsConfigFile  string = getenv("AWS_CONFIG_FILE", filepath.Join(home, ".aws/config"))
+	kubeConfigFile string = getenv("KUBECONFIG", filepath.Join(home, ".kube/config"))
 
 	configDryrun bool
 	configClean  bool
@@ -28,12 +29,14 @@ var (
 )
 
 func ConfigureCmd(cmd *cobra.Command, args []string) {
-	var err error
-	configClean, err = strconv.ParseBool(cmd.Flag("clean").Value.String())
-	configDryrun, err = strconv.ParseBool(cmd.Flag("dryrun").Value.String())
+	configClean, _ = strconv.ParseBool(cmd.Flag("clean").Value.String())
+	configDryrun, _ = strconv.ParseBool(cmd.Flag("dryrun").Value.String())
+	configCheck, _ := strconv.ParseBool(cmd.Flag("check").Value.String())
 	awsRegion = cmd.Flag("aws-region").Value.String()
 	environments := strings.Split(cmd.Flag("environments").Value.String(), ",")
 	domains := strings.Split(cmd.Flag("domains").Value.String(), ",")
+
+	var err error
 	binaryPath, err = exec.LookPath(binaryName)
 	if err != nil {
 		if path.Base(os.Args[0]) != "main" {
@@ -41,6 +44,15 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 		}
 		// don't worry about fullpath if running from go run
 		binaryPath = binaryName
+	}
+
+	if configCheck {
+		err := checkConfig(environments, domains)
+		if err != nil {
+			log.Fatal("quikstrate configure not run...\n", err)
+		}
+		log.Print("quikstrate configured correctly...")
+		os.Exit(0)
 	}
 
 	err = configureAWSConfig(environments, domains)
@@ -88,7 +100,7 @@ func configureKubeConfig(environments, domains []string) error {
 	log.Print("\nConfiguring kubeconfig")
 	if configClean {
 		log.Print("Removing existing kubeconfig")
-		os.Remove(kubectlConfigFile)
+		os.Remove(kubeConfigFile)
 	}
 	for _, environment := range environments {
 		for _, cluster := range Clusters {
@@ -131,4 +143,37 @@ func getenv(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func checkConfig(environments, domains []string) error {
+	// simple ~/.aws/config check, greps for quikstrate string
+	out, err := script.IfExists(awsConfigFile).Exec("cat " + awsConfigFile).Match(binaryName).String()
+	if err != nil {
+		return fmt.Errorf("%s doesn't exist", awsConfigFile)
+	}
+	if strings.TrimSpace(out) == "" {
+		return fmt.Errorf("%s doesn't call %s", awsConfigFile, binaryName)
+	}
+
+	// simple ~/.kube/config check, validates contexts and users exist
+	config, err := clientcmd.LoadFromFile(kubeConfigFile)
+	if err != nil {
+		return err
+	}
+	for _, environment := range environments {
+		for _, cluster := range Clusters {
+			if !slices.Contains(domains, cluster.Domain) {
+				continue
+			}
+			clusterName := fmt.Sprintf("%s-%s", environment, cluster.Name)
+
+			if _, ok := config.Contexts[clusterName]; !ok {
+				return fmt.Errorf("%s doesn't contain context %s", kubeConfigFile, clusterName)
+			}
+			if _, ok := config.AuthInfos[clusterName]; !ok {
+				return fmt.Errorf("%s doesn't contain user %s", kubeConfigFile, clusterName)
+			}
+		}
+	}
+	return nil
 }
