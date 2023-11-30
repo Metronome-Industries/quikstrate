@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/bitfield/script"
@@ -31,8 +32,9 @@ func (c Credentials) Print(format string) {
 		switch filepath.Base(os.Getenv("SHELL")) {
 		case "fish":
 			fmt.Printf(" set -x AWS_ACCESS_KEY_ID=\"%s\"; set -x AWS_SECRET_ACCESS_KEY=\"%s\"; set -x AWS_SESSION_TOKEN=\"%s\"\n", c.AccessKeyId, c.SecretAccessKey, c.SessionToken)
-		default: 
+		default:
 			fmt.Printf(" export AWS_ACCESS_KEY_ID=\"%s\" AWS_SECRET_ACCESS_KEY=\"%s\" AWS_SESSION_TOKEN=\"%s\"\n", c.AccessKeyId, c.SecretAccessKey, c.SessionToken)
+		}
 	default:
 		fmt.Printf("format %s is unsupported...", format)
 		os.Exit(1)
