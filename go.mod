@@ -3,16 +3,17 @@ module github.com/metronome-industries/quikstrate
 go 1.21.3
 
 require (
+	github.com/aws/aws-sdk-go-v2 v1.23.1
 	github.com/aws/aws-sdk-go-v2/config v1.25.5
 	github.com/aws/aws-sdk-go-v2/service/sts v1.25.4
 	github.com/bitfield/script v0.22.0
 	github.com/jedib0t/go-pretty/v6 v6.4.9
+	github.com/mitchellh/go-ps v1.0.0
 	github.com/spf13/cobra v1.7.0
 	k8s.io/client-go v0.28.4
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.23.1 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.4 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.5 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.4 // indirect

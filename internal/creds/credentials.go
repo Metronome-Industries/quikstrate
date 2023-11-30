@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/bitfield/script"
@@ -29,7 +28,7 @@ func (c Credentials) Print(format string) {
 		jsonData, _ := json.MarshalIndent(c, "", "  ")
 		fmt.Printf("%s\n", jsonData)
 	case "export":
-		switch filepath.Base(os.Getenv("SHELL")) {
+		switch getShell() {
 		case "fish":
 			fmt.Printf(" set -x AWS_ACCESS_KEY_ID=\"%s\"; set -x AWS_SECRET_ACCESS_KEY=\"%s\"; set -x AWS_SESSION_TOKEN=\"%s\"\n", c.AccessKeyId, c.SecretAccessKey, c.SessionToken)
 		default:
