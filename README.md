@@ -7,11 +7,9 @@ Under the hood `quikstrate` is caching and reusing the credentials returned by s
 ## Installing
 
 ```bash
-# probably already done
-brew tap metronome-industries/metronome
-
 brew update
-brew install quikstrate
+export HOMEBREW_GITHUB_API_TOKEN=$GITHUB_TOKEN
+brew install metronome-industries/metronome/quikstrate
 ```
 
 ## Usage
@@ -31,7 +29,8 @@ quikstrate configure
 
 ## Deployment
 
-The `SSH Key - goreleaser` in 1Password was created and added (per [documentation](https://circleci.com/docs/github-integration/#create-additional-github-ssh-keys)) as a Github deploy key with write access and a CircleCI deploy key to allow for repository tagging and release artifact creation.
+The `SSH Key - goreleaser` in 1Password was created and added (per [documentation](https://circleci.com/docs/github-integration/#create-additional-github-ssh-keys)) as a Github deploy key with write access and a CircleCI deploy key.  The CircleCI `goreleaser` context contains a classic GITHUB_TOKEN with `delete:packages, repo, write:packages` permissions
+for publishing to the `metronome-industries/homebrew-metronome` tap.
 
 ## Links
 
@@ -40,3 +39,8 @@ The `SSH Key - goreleaser` in 1Password was created and added (per [documentatio
 * <https://github.com/bitfield/script>
 * <https://github.com/aws/aws-sdk-go-v2>
 * <https://goreleaser.com/>
+
+## TODOs
+
+1. command to ensure kubeconfig/aws config files are correct
+2. configure kubeconfig to ignore AWS_* environment variables

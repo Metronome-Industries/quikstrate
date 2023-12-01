@@ -20,3 +20,19 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+brews:
+  - repository:
+      owner: Metronome-Industries
+      name: homebrew-metronome
+      branch: main
+    folder: Formula
+    homepage: https://github.com/Metronome-Industries/{{ .ProjectName }} 
+    dependencies:
+      - name: metronome-industries/metronome/substrate-tools
+      - name: kubectl
+      - name: kubectx
+      - name: awscli
+        type: optional
+    download_strategy: GitHubPrivateRepoAssetDownloadStrategy
+    custom_require: "../extensions/custom_download_strategy"
