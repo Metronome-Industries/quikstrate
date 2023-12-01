@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/bitfield/script"
+	"github.com/mitchellh/go-ps"
 	"github.com/spf13/cobra"
 )
 
@@ -73,4 +74,20 @@ func ensureAWSEnvSet() {
 
 func PreRunCmd(cmd *cobra.Command, args []string) {
 	script.Exec(fmt.Sprintf("mkdir -p %s", CredsDir)).Wait()
+}
+
+func getProcess(ppid int) ps.Process {
+	process, err := ps.FindProcess(ppid)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return process
+}
+
+func getShell() string {
+	parent := getProcess(os.Getppid())
+	if parent.Executable() == "go" {
+		parent = getProcess(parent.PPid())
+	}
+	return parent.Executable()
 }
