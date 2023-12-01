@@ -19,7 +19,7 @@ import (
 
 var (
 	awsConfigFile  string = getenv("AWS_CONFIG_FILE", filepath.Join(home, ".aws/config"))
-	kubeConfigFile string = getenv("KUBECONFIG", filepath.Join(home, ".kube/config"))
+	KubeConfigFile string = getenv("KUBECONFIG", filepath.Join(home, ".kube/config"))
 
 	configDryrun bool
 	configClean  bool
@@ -117,7 +117,7 @@ func configureKubeConfig(environments, domains []string) error {
 	log.Print("\nConfiguring kubeconfig")
 	if configClean {
 		log.Print("Removing existing kubeconfig")
-		os.Remove(kubeConfigFile)
+		os.Remove(KubeConfigFile)
 	}
 	for _, environment := range environments {
 		for _, cluster := range Clusters {
@@ -163,7 +163,7 @@ func checkConfig(environments, domains []string) error {
 	}
 
 	// simple ~/.kube/config check, validates contexts and users exist
-	config, err := clientcmd.LoadFromFile(kubeConfigFile)
+	config, err := clientcmd.LoadFromFile(KubeConfigFile)
 	if err != nil {
 		return err
 	}
@@ -178,10 +178,10 @@ func checkConfig(environments, domains []string) error {
 			clusterName := fmt.Sprintf("%s-%s", environment, cluster.Name)
 
 			if _, ok := config.Contexts[clusterName]; !ok {
-				return fmt.Errorf("%s doesn't contain context %s", kubeConfigFile, clusterName)
+				return fmt.Errorf("%s doesn't contain context %s", KubeConfigFile, clusterName)
 			}
 			if _, ok := config.AuthInfos[clusterName]; !ok {
-				return fmt.Errorf("%s doesn't contain user %s", kubeConfigFile, clusterName)
+				return fmt.Errorf("%s doesn't contain user %s", KubeConfigFile, clusterName)
 			}
 		}
 	}
