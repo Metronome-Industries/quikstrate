@@ -39,8 +39,3 @@ for publishing to the `metronome-industries/homebrew-metronome` tap.
 * <https://github.com/bitfield/script>
 * <https://github.com/aws/aws-sdk-go-v2>
 * <https://goreleaser.com/>
-
-## TODOs
-
-1. command to ensure kubeconfig/aws config files are correct
-2. configure kubeconfig to ignore AWS_* environment variables
