@@ -34,5 +34,3 @@ brews:
       - name: kubectx
       - name: awscli
         type: optional
-    download_strategy: GitHubPrivateRepoAssetDownloadStrategy
-    custom_require: "../extensions/custom_download_strategy"
