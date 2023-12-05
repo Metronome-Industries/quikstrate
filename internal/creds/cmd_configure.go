@@ -109,7 +109,7 @@ func configureKubeConfig(environments, domains []string) error {
 			}
 
 			// aws eks update-config
-			cmd := fmt.Sprintf("aws eks update-kubeconfig --alias %[1]s-%[3]s --name %[3]s --profile %[1]s-%[2]s", environment, cluster.Domain, cluster.Name)
+			cmd := fmt.Sprintf("aws eks update-kubeconfig --alias %[1]s-%[3]s --user-alias %[1]s-%[3]s --name %[3]s --profile %[1]s-%[2]s", environment, cluster.Domain, cluster.Name)
 			if configDryrun {
 				log.Printf("export AWS_PROFILE=%s\n", fmt.Sprintf("%s-%s", environment, cluster.Domain))
 				log.Print(cmd)
