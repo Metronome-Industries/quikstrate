@@ -22,7 +22,6 @@ var configureCmd = &cobra.Command{
 	kubectl:
 		- creates a context for each cluster
 		- uses the "aws eks update-kubeconfig" command to set the correct AWS_PROFILE for each context
-		- uses the "kubectl config set-credentials" command null out the non-pertinent AWS environment variables
 	`,
 	Run:    creds.ConfigureCmd,
 	PreRun: creds.PreRunCmd,

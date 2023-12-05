@@ -120,21 +120,8 @@ func configureKubeConfig(environments, domains []string) error {
 					log.Fatal(err)
 				}
 			}
-			// by nulling out these environment variables in the kubeconfig, we force kubectl to use AWS_PROFILE regardless of what is set in the environment
-			for _, v := range []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"} {
-				cmd := fmt.Sprintf("kubectl config set-credentials %s-%s --exec-env %s=\"\"", environment, cluster.Name, v)
-				if configDryrun {
-					log.Print(cmd)
-				} else {
-					_, err := script.Exec(cmd).Stdout()
-					if err != nil {
-						log.Fatal(err)
-					}
-				}
-			}
 		}
 	}
-
 	return nil
 }
 func getenv(key, fallback string) string {
