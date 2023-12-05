@@ -109,7 +109,7 @@ func configureKubeConfig(environments, domains []string) error {
 			}
 
 			// aws eks update-config
-			cmd := fmt.Sprintf("aws eks update-kubeconfig --alias %[1]s-%[3]s --user-alias %[1]s-%[3]s --name %[3]s --profile %[1]s-%[2]s", environment, cluster.Domain, cluster.Name)
+			cmd := fmt.Sprintf("aws eks update-kubeconfig --alias %[1]s-%[3]s --name %[3]s --profile %[1]s-%[2]s", environment, cluster.Domain, cluster.Name)
 			if configDryrun {
 				log.Printf("export AWS_PROFILE=%s\n", fmt.Sprintf("%s-%s", environment, cluster.Domain))
 				log.Print(cmd)
@@ -120,21 +120,8 @@ func configureKubeConfig(environments, domains []string) error {
 					log.Fatal(err)
 				}
 			}
-			// by nulling out these environment variables in the kubeconfig, we force kubectl to use AWS_PROFILE regardless of what is set in the environment
-			for _, v := range []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"} {
-				cmd := fmt.Sprintf("kubectl config set-credentials %s-%s --exec-env %s=\"\"", environment, cluster.Name, v)
-				if configDryrun {
-					log.Print(cmd)
-				} else {
-					_, err := script.Exec(cmd).Stdout()
-					if err != nil {
-						log.Fatal(err)
-					}
-				}
-			}
 		}
 	}
-
 	return nil
 }
 func getenv(key, fallback string) string {
