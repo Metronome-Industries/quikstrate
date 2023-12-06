@@ -30,7 +30,7 @@ func (c Credentials) Print(format string) {
 	case "export":
 		switch getShell() {
 		case "fish":
-			fmt.Printf(" set -x AWS_ACCESS_KEY_ID=\"%s\"; set -x AWS_SECRET_ACCESS_KEY=\"%s\"; set -x AWS_SESSION_TOKEN=\"%s\"\n", c.AccessKeyId, c.SecretAccessKey, c.SessionToken)
+			fmt.Printf(" set -x AWS_ACCESS_KEY_ID \"%s\"; set -x AWS_SECRET_ACCESS_KEY \"%s\"; set -x AWS_SESSION_TOKEN \"%s\"\n", c.AccessKeyId, c.SecretAccessKey, c.SessionToken)
 		default:
 			fmt.Printf(" export AWS_ACCESS_KEY_ID=\"%s\" AWS_SECRET_ACCESS_KEY=\"%s\" AWS_SESSION_TOKEN=\"%s\"\n", c.AccessKeyId, c.SecretAccessKey, c.SessionToken)
 		}
