@@ -99,7 +99,7 @@ func getCredentials(role RoleData) (creds Credentials, err error) {
 		ensureAWSEnvSet()
 		cmd = fmt.Sprintf("substrate assume-role -environment %s -domain %s -quality %s -role %s -format json", role.Environment, role.Domain, role.Quality, role.Role)
 	}
-	log.Print("running", cmd)
+	log.Print("running: ", cmd)
 	byteValue, err := script.NewPipe().WithStderr(os.Stderr).Exec(cmd).Bytes()
 	if err != nil {
 		return
