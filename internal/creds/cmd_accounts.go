@@ -28,7 +28,7 @@ func AccountsCmd(cmd *cobra.Command, args []string) {
 func getAccountList() (accountList AccountList, err error) {
 	accountList, err = readAccountsFile(accountsFile)
 	if err != nil {
-		log.Print("unable to read cached file, calling substrate...")
+		log.Print("unable to read cached accounts file, calling substrate...")
 		accountList, err = refreshAccounts(accountsFile)
 	}
 	return
