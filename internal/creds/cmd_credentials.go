@@ -2,6 +2,7 @@ package creds
 
 import (
 	"log"
+	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -9,6 +10,11 @@ import (
 func CredentialsCmd(cmd *cobra.Command, args []string) {
 	format := cmd.Flag("format").Value.String()
 	force := cmd.Flag("force").Value.String()
+	check := cmd.Flag("check").Value.String()
+
+	if check == "true" {
+		checkCredentials()
+	}
 
 	var creds Credentials
 	var err error
@@ -25,4 +31,12 @@ func CredentialsCmd(cmd *cobra.Command, args []string) {
 
 func getDefaultCredentials() (Credentials, error) {
 	return refreshCredentials(RoleData{}, DefaultCredsFile)
+}
+
+func checkCredentials() {
+	creds, err := getCredsFromFile(DefaultCredsFile)
+	if err != nil || creds.needsRefresh() {
+		os.Exit(1)
+	}
+	os.Exit(0)
 }

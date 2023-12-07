@@ -20,5 +20,7 @@ alias creds="eval \$(quikstrate credentials)"`,
 func init() {
 	credentialsCmd.Flags().StringP("format", "f", "export", "substrate environment")
 	credentialsCmd.Flags().Bool("force", false, "always fetch new credentials")
+	credentialsCmd.Flags().Bool("check", false, "check if credentials are expired, exit 0 if up-to-date otherwise exit 1`")
+	credentialsCmd.MarkFlagsMutuallyExclusive("force", "check")
 	rootCmd.AddCommand(credentialsCmd)
 }
