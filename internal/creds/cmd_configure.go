@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -73,8 +74,8 @@ func configureAWSConfig(environments, domains []string) error {
 		os.Remove(awsConfigFile)
 	}
 
-	setAWSConfigValue("default", "credential_process", fmt.Sprintf("\"%s credentials -f json\"", binaryPath))
-	setAWSConfigValue("default", "region", awsRegion)
+	// reverse order so staging is before prod
+	sort.Sort(sort.Reverse(sort.StringSlice(environments)))
 	for _, environment := range environments {
 		for _, domain := range domains {
 			profile := fmt.Sprintf("%s-%s", environment, domain)
@@ -84,6 +85,8 @@ func configureAWSConfig(environments, domains []string) error {
 			setAWSConfigValue(profile, "region", awsRegion)
 		}
 	}
+	setAWSConfigValue("default", "credential_process", fmt.Sprintf("\"%s credentials -f json\"", binaryPath))
+	setAWSConfigValue("default", "region", awsRegion)
 	return nil
 }
 
