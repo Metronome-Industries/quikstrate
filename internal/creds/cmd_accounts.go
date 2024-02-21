@@ -41,7 +41,7 @@ func refreshAccounts(file string) (accountList AccountList, err error) {
 	}
 	defaultCreds.SetEnv()
 
-	byteValue, err := script.NewPipe().WithStderr(os.Stderr).Exec("substrate account list -format json").Bytes()
+	byteValue, err := script.NewPipe().WithStderr(os.Stderr).Exec("substrate account list --format json").Bytes()
 	if err != nil {
 		return
 	}

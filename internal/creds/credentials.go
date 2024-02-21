@@ -94,11 +94,10 @@ func refreshCredentials(role RoleData, file string) (Credentials, error) {
 func getCredentials(role RoleData) (creds Credentials, err error) {
 	var cmd string
 	if (role == RoleData{}) {
-		// if you don't run with "-force" and your env creds are not expired, substrate will output a non-JSON response
-		cmd = "substrate credentials -format json -force"
+		cmd = "substrate credentials --format json --force"
 	} else {
 		ensureAWSEnvSet()
-		cmd = fmt.Sprintf("substrate assume-role -environment %s -domain %s -quality %s -role %s -format json", role.Environment, role.Domain, role.Quality, role.Role)
+		cmd = fmt.Sprintf("substrate assume-role --environment %s --domain %s --quality %s --role %s --format json", role.Environment, role.Domain, role.Quality, role.Role)
 	}
 	log.Print("running: ", cmd)
 	byteValue, err := script.NewPipe().WithStderr(os.Stderr).Exec(cmd).Bytes()
