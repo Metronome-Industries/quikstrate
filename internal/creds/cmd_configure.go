@@ -120,7 +120,7 @@ func configureKubeConfig(environments, domains []string) error {
 				os.Setenv("AWS_PROFILE", fmt.Sprintf("%s-%s", environment, cluster.Domain))
 				_, err := script.Exec(cmd).Stdout()
 				if err != nil {
-					log.Fatal(err)
+					log.Printf("ERROR: unable to configure kubeconfig for %s-%s\n%s\n", environment, cluster.Domain, err)
 				}
 			}
 		}
