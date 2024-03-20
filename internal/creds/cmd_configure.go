@@ -27,6 +27,11 @@ var (
 
 	binaryName = "quikstrate"
 	binaryPath string
+
+	// match fmt.Sprintf("%s-%s", environment, cluster.Domain)
+	kubeConfigSkips = []string{
+		"prod-api",
+	}
 )
 
 func ConfigureCmd(cmd *cobra.Command, args []string) {
@@ -110,6 +115,9 @@ func configureKubeConfig(environments, domains []string) error {
 			if !slices.Contains(domains, cluster.Domain) {
 				continue
 			}
+			if slices.Contains(kubeConfigSkips, fmt.Sprintf("%s-%s", environment, cluster.Domain)) {
+				continue
+			}
 
 			// aws eks update-config
 			cmd := fmt.Sprintf("aws eks update-kubeconfig --alias %[1]s-%[3]s --user-alias %[1]s-%[3]s --name %[3]s --profile %[1]s-%[2]s", environment, cluster.Domain, cluster.Name)
@@ -120,7 +128,7 @@ func configureKubeConfig(environments, domains []string) error {
 				os.Setenv("AWS_PROFILE", fmt.Sprintf("%s-%s", environment, cluster.Domain))
 				_, err := script.Exec(cmd).Stdout()
 				if err != nil {
-					log.Printf("ERROR: unable to configure kubeconfig for %s-%s\n%s\n", environment, cluster.Domain, err)
+					log.Fatal(err)
 				}
 			}
 		}
@@ -153,6 +161,9 @@ func checkConfig(environments, domains []string) error {
 	for _, environment := range environments {
 		for _, cluster := range Clusters {
 			if !slices.Contains(domains, cluster.Domain) {
+				continue
+			}
+			if slices.Contains(kubeConfigSkips, fmt.Sprintf("%s-%s", environment, cluster.Domain)) {
 				continue
 			}
 			clusterName := fmt.Sprintf("%s-%s", environment, cluster.Name)
