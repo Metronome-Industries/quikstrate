@@ -29,9 +29,7 @@ var (
 	binaryPath string
 
 	// match fmt.Sprintf("%s-%s", environment, cluster.Domain)
-	kubeConfigSkips = []string{
-		"prod-api",
-	}
+	kubeConfigSkips = []string{}
 )
 
 func ConfigureCmd(cmd *cobra.Command, args []string) {

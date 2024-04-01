@@ -40,10 +40,6 @@ var (
 			Name:   "rating",
 			Domain: "ingest",
 		},
-		{
-			Name:   "api",
-			Domain: "api",
-		},
 	}
 )
 
