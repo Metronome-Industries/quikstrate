@@ -170,7 +170,7 @@ func calculateDrift(path string, matchPatterns []string, skipPatterns []string) 
 			color.Red(fmt.Sprint(result))
 		case result.Changed:
 			changes++
-			color.Yellow(fmt.Sprint(result))
+			color.Yellow(result.String())
 		default:
 			clean++
 			color.Green(result.String())
