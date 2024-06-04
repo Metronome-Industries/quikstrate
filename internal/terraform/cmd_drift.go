@@ -173,7 +173,7 @@ func calculateDrift(path string, matchPatterns []string, skipPatterns []string) 
 			color.Yellow(fmt.Sprint(result))
 		default:
 			clean++
-			color.Green(fmt.Sprint(result))
+			color.Green(result.String())
 		}
 	}
 	slog.Info(
