@@ -4,7 +4,7 @@ orbs:
   go: circleci/go@1.11.0
 jobs:
   test:
-    executor:
+    executor: &executor
       name: go/default
       tag: '1.22'
     steps:
@@ -19,9 +19,7 @@ jobs:
             goreleaser release --snapshot --clean
       - go/save-cache
   publish:
-    executor:
-      name: go/default
-      tag: '1.21'
+    executor: *executor
     steps:
       - checkout
       - go/load-cache
