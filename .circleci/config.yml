@@ -1,12 +1,12 @@
 version: 2.1
 orbs:
   # https://circleci.com/developer/orbs/orb/circleci/go
-  go: circleci/go@1.9.0
+  go: circleci/go@1.11.0
 jobs:
   test:
     executor:
       name: go/default
-      tag: '1.21'
+      tag: '1.22'
     steps:
       - checkout
       - go/load-cache

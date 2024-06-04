@@ -26,7 +26,7 @@ brews:
       owner: Metronome-Industries
       name: homebrew-metronome
       branch: main
-    folder: Formula
+    directory: Formula
     homepage: https://github.com/Metronome-Industries/{{ .ProjectName }} 
     dependencies:
       - name: metronome-industries/metronome/substrate-tools
