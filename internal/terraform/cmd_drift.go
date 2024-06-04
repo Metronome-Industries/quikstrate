@@ -99,7 +99,7 @@ func calculateDrift(path string, matchPatterns []string, skipPatterns []string) 
 		log.Fatalf("Failed to get root modules: %s", err)
 	}
 
-	var matchedModules []string
+	matchedModules := make(map[string]bool)
 	for _, module := range modules {
 		for _, pattern := range matchPatterns {
 			match, err := doublestar.PathMatch(fmt.Sprintf("**/%s/**", pattern), module)
@@ -107,31 +107,33 @@ func calculateDrift(path string, matchPatterns []string, skipPatterns []string) 
 				log.Fatalf("match pattern error: %s", err)
 			}
 			if match {
-				matchedModules = append(matchedModules, module)
+				matchedModules[module] = true
 			}
 		}
-	}
-	var finalModules []string
-	for _, module := range matchedModules {
 		for _, pattern := range skipPatterns {
 			match, err := doublestar.PathMatch(fmt.Sprintf("**/%s/**", pattern), module)
 			if err != nil {
 				log.Fatalf("skip pattern error: %s", err)
 			}
-			if !match {
-				finalModules = append(finalModules, module)
+			if match {
+				matchedModules[module] = false
 			}
+		}
+	}
+	var finalModules []string
+	for module, match := range matchedModules {
+		if match {
+			finalModules = append(finalModules, module)
 		}
 	}
 
 	planCount := len(finalModules)
 	slog.Debug(
 		"SEARCH",
-		slog.Int("moduleCount", len(modules)),
+		slog.Int("modulesFound", len(modules)),
 		slog.Any("matchPatterns", matchPatterns),
-		slog.Int("matchCount", len(matchedModules)),
 		slog.Any("skipPatterns", skipPatterns),
-		slog.Int("skipCount", len(matchedModules)-len(finalModules)),
+		slog.Int("modulesMatched", len(finalModules)),
 	)
 	slog.Info("running plans", "planCount", len(finalModules))
 
