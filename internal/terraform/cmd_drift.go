@@ -43,7 +43,6 @@ var (
 func DriftCmd(cmd *cobra.Command, args []string) {
 	TerraformVersion = cmd.Flag("terraform-version").Value.String()
 	path := cmd.Flag("path").Value.String()
-	// filter := cmd.Flag("filter").Value.String()
 	verbose, _ := strconv.ParseBool(cmd.Flag("verbose").Value.String())
 	matchPatterns, err := cmd.Flags().GetStringArray("match")
 	if err != nil {
