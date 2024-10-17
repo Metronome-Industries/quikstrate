@@ -40,6 +40,10 @@ var (
 			Name:   "rating",
 			Domain: "ingest",
 		},
+		{
+			Name:   "dagster",
+			Domain: "lakehouse",
+		},
 	}
 )
 
