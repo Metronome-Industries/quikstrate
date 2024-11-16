@@ -30,6 +30,8 @@ var (
 
 	// match fmt.Sprintf("%s-%s", environment, cluster.Domain)
 	kubeConfigSkips = []string{}
+
+	specialDomains = []string{"audit", "deploy", "network"} // management is special
 )
 
 func ConfigureCmd(cmd *cobra.Command, args []string) {
@@ -82,15 +84,24 @@ func configureAWSConfig(environments, domains []string) error {
 	for _, environment := range environments {
 		for _, domain := range domains {
 			profile := fmt.Sprintf("%s-%s", environment, domain)
-			log.Printf("Configuring profile %s\n", profile)
-
-			setAWSConfigValue(profile, "credential_process", fmt.Sprintf("\"%s assume -e %s -d %s -f json\"", binaryPath, environment, domain))
-			setAWSConfigValue(profile, "region", awsRegion)
+			setAWSProfile(profile, fmt.Sprintf("\"%s assume -e %s -d %s -f json\"", binaryPath, environment, domain), awsRegion)
 		}
 	}
+
+	setAWSProfile("management", "\"substrate assume-role --management --format json\"", awsRegion)
+	for _, domain := range specialDomains {
+		setAWSProfile(domain, fmt.Sprintf("\"substrate assume-role --special %s --format json\"", domain), awsRegion)
+	}
+
 	setAWSConfigValue("default", "credential_process", fmt.Sprintf("\"%s credentials -f json\"", binaryPath))
 	setAWSConfigValue("default", "region", awsRegion)
 	return nil
+}
+
+func setAWSProfile(name, credentialProcess, region string) {
+	log.Printf("Configuring profile %s\n", name)
+	setAWSConfigValue(name, "credential_process", credentialProcess)
+	setAWSConfigValue(name, "region", region)
 }
 
 func setAWSConfigValue(profile, key, value string) {
