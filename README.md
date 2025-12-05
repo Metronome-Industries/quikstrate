@@ -33,13 +33,13 @@ To see what version of quikstrate you are running, run: `brew info quikstrate`
 
 ## Deployment
 
-The `SSH Key - goreleaser` in 1Password was created and added (per [documentation](https://circleci.com/docs/github-integration/#create-additional-github-ssh-keys)) as a Github deploy key with write access and a CircleCI deploy key.  The CircleCI `goreleaser` context contains a classic GITHUB_TOKEN with `delete:packages, repo, write:packages` permissions
+The `SSH Key - goreleaser` in 1Password was created and added (per [documentation](https://circleci.com/docs/github-integration/#create-additional-github-ssh-keys)) as a Github deploy key with write access and a CircleCI deploy key. The CircleCI `goreleaser` context contains a classic GITHUB_TOKEN with `delete:packages, repo, write:packages` permissions
 for publishing to the `metronome-industries/homebrew-metronome` tap.
 
 ## Links
 
-* <https://docs.substrate.tools/substrate/access/aws-cli-profiles>
-* <https://github.com/spf13/cobra/>
-* <https://github.com/bitfield/script>
-* <https://github.com/aws/aws-sdk-go-v2>
-* <https://goreleaser.com/>
+- <https://github.com/substrate-maintainers/substrate/blob/main/docs/access/aws-cli-profiles.md>
+- <https://github.com/spf13/cobra/>
+- <https://github.com/bitfield/script>
+- <https://github.com/aws/aws-sdk-go-v2>
+- <https://goreleaser.com/>
