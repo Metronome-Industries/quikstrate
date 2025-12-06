@@ -44,6 +44,10 @@ var (
 			Name:   "dagster",
 			Domain: "lakehouse",
 		},
+		{
+			Name:   "internal-services",
+			Domain: "internal-services",
+		},
 	}
 )
 
