@@ -44,12 +44,18 @@ var (
 			Name:   "dagster",
 			Domain: "lakehouse",
 		},
+		{
+			Name:         "internal-services",
+			Domain:       "internal-services",
+			Environments: []string{"prod"}, // Only exists in prod
+		},
 	}
 )
 
 type ClusterSpec struct {
-	Name   string
-	Domain string
+	Name         string
+	Domain       string
+	Environments []string // If empty, cluster exists in all environments
 }
 
 type Environment struct {
