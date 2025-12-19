@@ -127,6 +127,10 @@ func configureKubeConfig(environments, domains []string) error {
 			if slices.Contains(kubeConfigSkips, fmt.Sprintf("%s-%s", environment, cluster.Domain)) {
 				continue
 			}
+			// Skip if cluster has specific environments and this environment is not in the list
+			if len(cluster.Environments) > 0 && !slices.Contains(cluster.Environments, environment) {
+				continue
+			}
 
 			// aws eks update-config
 			cmd := fmt.Sprintf("aws eks update-kubeconfig --alias %[1]s-%[3]s --user-alias %[1]s-%[3]s --name %[3]s --profile %[1]s-%[2]s", environment, cluster.Domain, cluster.Name)
@@ -173,6 +177,10 @@ func checkConfig(environments, domains []string) error {
 				continue
 			}
 			if slices.Contains(kubeConfigSkips, fmt.Sprintf("%s-%s", environment, cluster.Domain)) {
+				continue
+			}
+			// Skip if cluster has specific environments and this environment is not in the list
+			if len(cluster.Environments) > 0 && !slices.Contains(cluster.Environments, environment) {
 				continue
 			}
 			clusterName := fmt.Sprintf("%s-%s", environment, cluster.Name)
