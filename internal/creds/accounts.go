@@ -2,8 +2,7 @@ package creds
 
 import "fmt"
 
-// staticServiceAccounts maps [domain, environment] to AWS account IDs.
-// Source: metronome-substrate/substrate.accounts.txt (druid-staging deleted).
+// Hardcode [domain, environment] to AWS account IDs to remove dependency on Substrate
 var staticServiceAccounts = map[[2]string]string{
 	{"api", "staging"}:            "407752757973",
 	{"api", "prod"}:               "477056945755",
@@ -31,7 +30,7 @@ var staticServiceAccounts = map[[2]string]string{
 	{"static-sites", "prod"}:      "447219469935",
 }
 
-// staticSpecialAccounts maps special account names to AWS account IDs.
+// Hardcode "special" AWS account IDs. Special accounts are concept carried over from Substrate, treat them as prod.
 var staticSpecialAccounts = map[string]string{
 	"management": "420073272039",
 	"audit":      "465454680116",
@@ -44,12 +43,12 @@ func lookupServiceAccountID(domain, environment string) (string, error) {
 	if id, ok := staticServiceAccounts[[2]string{domain, environment}]; ok {
 		return id, nil
 	}
-	return "", fmt.Errorf("unknown account: domain=%s environment=%s", domain, environment)
+	return "", fmt.Errorf("unknown account: domain=%s environment=%s. Update accounts.go with account id.", domain, environment)
 }
 
 func lookupSpecialAccountID(name string) (string, error) {
 	if id, ok := staticSpecialAccounts[name]; ok {
 		return id, nil
 	}
-	return "", fmt.Errorf("unknown special account %q (valid: management, audit, deploy, network)", name)
+	return "", fmt.Errorf("unknown special account %q. Update accounts.go with account id.", name)
 }

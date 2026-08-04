@@ -24,8 +24,7 @@ func getAccountList() (AccountList, error) {
 	return buildStaticAccountList(), nil
 }
 
-// buildStaticAccountList constructs an AccountList from the hardcoded account maps.
-// This replaces the previous substrate account list call.
+// Construct AccountList from the hardcoded account maps
 func buildStaticAccountList() AccountList {
 	var accounts []Account
 	for key, id := range staticServiceAccounts {
