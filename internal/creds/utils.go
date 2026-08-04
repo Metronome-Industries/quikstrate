@@ -30,7 +30,7 @@ var (
 			DefaultRole:    "Auditor",
 		},
 	}
-	Domains  = []string{"api", "auth", "druid", "graphql", "ingest", "lakehouse", "lambda", "marketplaces", "notifications", "static-sites", "internal-services"}
+	Domains = []string{"api", "auth", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "notifications", "static-sites", "internal-services"}
 	Clusters = []ClusterSpec{
 		{
 			Name:   "graphql",
