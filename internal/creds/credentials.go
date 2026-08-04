@@ -91,22 +91,63 @@ func refreshCredentials(role RoleData, file string) (Credentials, error) {
 	return creds, nil
 }
 
-func getCredentials(role RoleData) (creds Credentials, err error) {
+func getCredentials(role RoleData) (Credentials, error) {
+	if role == (RoleData{}) {
+		return substrateBaseCredentials()
+	}
+	if role.SpecialAccount != "" {
+		return substrateSpecialCredentials(role.SpecialAccount)
+	}
+	return substrateAssumeRole(role)
+}
+
+func substrateBaseCredentials() (Credentials, error) {
+	cmd := "substrate credentials --format json --force"
+	log.Print("running: ", cmd)
+	byteValue, err := script.NewPipe().WithStderr(os.Stderr).Exec(cmd).Bytes()
+	if err != nil {
+		return Credentials{}, err
+	}
+	var creds Credentials
+	return creds, json.Unmarshal(byteValue, &creds)
+}
+
+func substrateAssumeRole(role RoleData) (Credentials, error) {
+	baseCreds, err := substrateBaseCredentials()
+	if err != nil {
+		return Credentials{}, err
+	}
+	baseCreds.SetEnv()
+	cmd := fmt.Sprintf("substrate assume-role --environment %s --domain %s --quality %s --role %s --format json",
+		role.Environment, role.Domain, role.Quality, role.Role)
+	log.Print("running: ", cmd)
+	byteValue, err := script.NewPipe().WithStderr(os.Stderr).Exec(cmd).Bytes()
+	if err != nil {
+		return Credentials{}, err
+	}
+	var creds Credentials
+	return creds, json.Unmarshal(byteValue, &creds)
+}
+
+func substrateSpecialCredentials(name string) (Credentials, error) {
+	baseCreds, err := substrateBaseCredentials()
+	if err != nil {
+		return Credentials{}, err
+	}
+	baseCreds.SetEnv()
 	var cmd string
-	if (role == RoleData{}) {
-		cmd = "substrate credentials --format json --force"
+	if name == "management" {
+		cmd = "substrate assume-role --management --format json"
 	} else {
-		ensureAWSEnvSet()
-		cmd = fmt.Sprintf("substrate assume-role --environment %s --domain %s --quality %s --role %s --format json", role.Environment, role.Domain, role.Quality, role.Role)
+		cmd = fmt.Sprintf("substrate assume-role --special %s --format json", name)
 	}
 	log.Print("running: ", cmd)
 	byteValue, err := script.NewPipe().WithStderr(os.Stderr).Exec(cmd).Bytes()
 	if err != nil {
-		return
+		return Credentials{}, err
 	}
-
-	err = json.Unmarshal(byteValue, &creds)
-	return
+	var creds Credentials
+	return creds, json.Unmarshal(byteValue, &creds)
 }
 
 func getAndWriteCredentials(role RoleData, file string) (Credentials, error) {

@@ -9,23 +9,36 @@ import (
 
 func AssumeCmd(cmd *cobra.Command, args []string) {
 	format := cmd.Flag("format").Value.String()
-	force := cmd.Flag("force").Value.String()
+	force, _ := cmd.Flags().GetBool("force")
+	management, _ := cmd.Flags().GetBool("management")
+	special, _ := cmd.Flags().GetString("special")
+	roleOverride := cmd.Flag("role").Value.String()
 
-	roleData, ok := NewRoleData(cmd.Flag("env").Value.String(), cmd.Flag("domain").Value.String(), cmd.Flag("quality").Value.String(), cmd.Flag("role").Value.String())
-	if !ok {
-		cmd.Usage()
-		os.Exit(1)
+	var roleData RoleData
+	switch {
+	case management:
+		roleData = RoleData{SpecialAccount: "management", Role: roleOverride}
+	case special != "":
+		roleData = RoleData{SpecialAccount: special, Role: roleOverride}
+	default:
+		env := cmd.Flag("env").Value.String()
+		domain := cmd.Flag("domain").Value.String()
+		if env == "" || domain == "" {
+			cmd.Usage()
+			os.Exit(1)
+		}
+		var ok bool
+		roleData, ok = NewRoleData(env, domain, cmd.Flag("quality").Value.String(), roleOverride)
+		if !ok {
+			log.Fatalf("unknown environment %q", env)
+		}
 	}
 
-	defaultCreds, err := getDefaultCredentials()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defaultCreds.SetEnv()
-
-	var creds Credentials
-	if force == "true" {
+	var (
+		creds Credentials
+		err   error
+	)
+	if force {
 		creds, err = getAndWriteCredentials(roleData, roleData.GetFilename())
 	} else {
 		creds, err = refreshCredentials(roleData, roleData.GetFilename())
@@ -33,7 +46,6 @@ func AssumeCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	creds.Print(format)
 }
 

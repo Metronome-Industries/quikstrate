@@ -88,9 +88,9 @@ func configureAWSConfig(environments, domains []string) error {
 		}
 	}
 
-	setAWSProfile("management", "\"substrate assume-role --management --format json\"", awsRegion)
+	setAWSProfile("management", fmt.Sprintf("\"%s assume --management -f json\"", binaryPath), awsRegion)
 	for _, domain := range specialDomains {
-		setAWSProfile(domain, fmt.Sprintf("\"substrate assume-role --special %s --format json\"", domain), awsRegion)
+		setAWSProfile(domain, fmt.Sprintf("\"%s assume --special %s -f json\"", binaryPath, domain), awsRegion)
 	}
 
 	setAWSConfigValue("default", "credential_process", fmt.Sprintf("\"%s credentials -f json\"", binaryPath))
