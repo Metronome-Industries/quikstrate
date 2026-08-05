@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
-	"path"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -42,14 +40,12 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	environments := strings.Split(cmd.Flag("environments").Value.String(), ",")
 	domains := strings.Split(cmd.Flag("domains").Value.String(), ",")
 
+	// Use the running executable's path so credential_process entries in ~/.aws/config
+	// always point to the binary that ran configure (important when testing local builds).
 	var err error
-	binaryPath, err = exec.LookPath(binaryName)
+	binaryPath, err = os.Executable()
 	if err != nil {
-		if path.Base(os.Args[0]) != "main" {
-			log.Fatalf("could not find %s binary in path...", binaryName)
-		}
-		// don't worry about fullpath if running from go run
-		binaryPath = binaryName
+		binaryPath = os.Args[0]
 	}
 
 	if configCheck {

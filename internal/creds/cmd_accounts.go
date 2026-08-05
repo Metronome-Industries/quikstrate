@@ -24,15 +24,20 @@ func getAccountList() (AccountList, error) {
 	return buildStaticAccountList(), nil
 }
 
+// Qualities for environments that exist in staticServiceAccounts but not in EnvironmentMap
+// (e.g. "admin"). Kept separate so EnvironmentMap stays scoped to configure/assume.
+var staticEnvironmentQualities = map[string]string{
+	"staging": "alpha",
+	"prod":    "gamma",
+	"admin":   "alpha",
+}
+
 // Construct AccountList from the hardcoded account maps
 func buildStaticAccountList() AccountList {
 	var accounts []Account
 	for key, id := range staticServiceAccounts {
 		domain, environment := key[0], key[1]
-		quality := ""
-		if env, ok := EnvironmentMap[environment]; ok {
-			quality = env.DefaultQuality
-		}
+		quality := staticEnvironmentQualities[environment]
 		accounts = append(accounts, Account{
 			Id:     id,
 			Name:   fmt.Sprintf("%s-%s", domain, environment),
@@ -44,6 +49,7 @@ func buildStaticAccountList() AccountList {
 			},
 		})
 	}
+	// Special accounts have no Domain/Environment/Quality tags — matches substrate account list behavior.
 	for name, id := range staticSpecialAccounts {
 		accounts = append(accounts, Account{
 			Id:     id,

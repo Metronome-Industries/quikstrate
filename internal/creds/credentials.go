@@ -113,7 +113,7 @@ func substrateBaseCredentials() (Credentials, error) {
 }
 
 func substrateAssumeRole(role RoleData) (Credentials, error) {
-	baseCreds, err := substrateBaseCredentials()
+	baseCreds, err := getDefaultCredentials()
 	if err != nil {
 		return Credentials{}, err
 	}
@@ -130,7 +130,7 @@ func substrateAssumeRole(role RoleData) (Credentials, error) {
 }
 
 func substrateSpecialCredentials(name string) (Credentials, error) {
-	baseCreds, err := substrateBaseCredentials()
+	baseCreds, err := getDefaultCredentials()
 	if err != nil {
 		return Credentials{}, err
 	}
