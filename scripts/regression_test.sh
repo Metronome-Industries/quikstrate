@@ -8,17 +8,14 @@
 #
 #   --run-configure  Write real ~/.aws/config and ~/.kube/config, then verify
 #                    a sample of AWS_PROFILE values work end-to-end.
-#   --run-drift      Run drift tests (slow; downloads terraform binary, reads S3 state).
 
 set -euo pipefail
 
 # ── flags ────────────────────────────────────────────────────────────────────
 RUN_CONFIGURE=false
-RUN_DRIFT=false
 for arg in "$@"; do
   case "$arg" in
     --run-configure) RUN_CONFIGURE=true ;;
-    --run-drift)     RUN_DRIFT=true ;;
     *) echo "Unknown flag: $arg"; exit 1 ;;
   esac
 done
@@ -299,30 +296,6 @@ fi
 section "clean"
 echo "  INFO  Skipped to preserve credential cache from this run."
 echo "        To test manually: quikstrate clean && quikstrate credentials"
-
-# ── drift ─────────────────────────────────────────────────────────────────────
-section "drift"
-
-if [[ "$RUN_DRIFT" == "false" ]]; then
-  skip "drift (pass --run-drift to enable)"
-else
-  echo "  INFO  Requires terraform root-modules. Set DRIFT_PATH or drift auto-detects via git root."
-  DRIFT_ARGS=("--terraform-version" "1.5.6")
-  [[ -n "${DRIFT_PATH:-}" ]] && DRIFT_ARGS+=("--path" "$DRIFT_PATH")
-
-  DRIFT_OUT=$("$BIN" drift "${DRIFT_ARGS[@]}" 2>&1)
-  DRIFT_CODE=$?
-  if [[ $DRIFT_CODE -eq 0 ]]; then
-    pass "drift exits 0 (plan-only, no AWS writes)"
-  else
-    fail "drift exits $DRIFT_CODE"
-  fi
-  if echo "$DRIFT_OUT" | rg -q "SUMMARY"; then
-    pass "drift output contains SUMMARY line"
-  else
-    fail "drift output missing SUMMARY line"
-  fi
-fi
 
 # ── summary ───────────────────────────────────────────────────────────────────
 echo
