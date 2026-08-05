@@ -19,11 +19,11 @@ Note that role-specific credentials expire in 1 hour, not 12 hours like the defa
 }
 
 func init() {
-	assumeCmd.Flags().StringP("env", "e", "", "environment (staging or prod)")
-	assumeCmd.Flags().StringP("domain", "d", "", "domain")
-	assumeCmd.Flags().StringP("quality", "q", "", "quality")
-	assumeCmd.Flags().StringP("role", "r", "Administrator", "role")
-	assumeCmd.Flags().StringP("format", "f", "export", "output format (export or json)")
+	assumeCmd.Flags().StringP("env", "e", "", "substrate environment")
+	assumeCmd.Flags().StringP("domain", "d", "", "substrate domain")
+	assumeCmd.Flags().StringP("quality", "q", "", "substrate quality")
+	assumeCmd.Flags().StringP("role", "r", "Administrator", "substrate role")
+	assumeCmd.Flags().StringP("format", "f", "export", "substrate environment")
 	assumeCmd.Flags().Bool("force", false, "always fetch new credentials")
 	assumeCmd.Flags().Bool("management", false, "assume role in the management account")
 	assumeCmd.Flags().String("special", "", "assume role in a special account: audit, deploy, or network")
