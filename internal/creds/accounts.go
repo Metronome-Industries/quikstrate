@@ -24,6 +24,7 @@ var staticServiceAccounts = map[[2]string]string{
 	{"marketplaces", "staging"}:   "501845335119",
 	{"marketplaces", "prod"}:      "916227654331",
 	{"network", "staging"}:        "075647413734",
+	{"network", "prod"}:           "814412579886",
 	{"notifications", "staging"}:  "909838927472",
 	{"notifications", "prod"}:     "078168529438",
 	{"static-sites", "staging"}:   "414118243174",
@@ -31,12 +32,13 @@ var staticServiceAccounts = map[[2]string]string{
 	{"admin", "admin"}:            "666642175330",
 }
 
-// Hardcode "special" AWS account IDs. Special accounts are concept carried over from Substrate, treat them as prod.
+// Special accounts are a concept carried over from Substrate. They are accessed via --special <name>.
 var staticSpecialAccounts = map[string]string{
 	"management": "420073272039",
 	"audit":      "465454680116",
 	"deploy":     "703712742941",
 	"network":    "814412579886",
+	"substrate":  "666642175330",
 }
 
 func lookupServiceAccountID(domain, environment string) (string, error) {
