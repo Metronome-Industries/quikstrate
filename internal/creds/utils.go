@@ -30,7 +30,7 @@ var (
 			DefaultRole:    "Auditor",
 		},
 	}
-	Domains  = []string{"api", "auth", "druid", "graphql", "ingest", "lakehouse", "lambda", "marketplaces", "notifications", "static-sites", "internal-services"}
+	Domains = []string{"api", "auth", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "network-staging", "notifications", "static-sites", "internal-services"}
 	Clusters = []ClusterSpec{
 		{
 			Name:   "graphql",
@@ -66,13 +66,21 @@ type Environment struct {
 }
 
 type RoleData struct {
-	Environment string
-	Domain      string
-	Quality     string
-	Role        string
+	Environment    string
+	Domain         string
+	Quality        string
+	Role           string
+	SpecialAccount string // non-empty when assuming into a special account (management, audit, deploy, network)
 }
 
 func (r RoleData) GetFilename() string {
+	if r.SpecialAccount != "" {
+		role := r.Role
+		if role == "" {
+			role = "default"
+		}
+		return filepath.Join(CredsDir, fmt.Sprintf("special-%s-%s.json", r.SpecialAccount, role))
+	}
 	return filepath.Join(CredsDir, strings.ToLower(fmt.Sprintf("%s-%s-%s-%s.json", r.Environment, r.Domain, r.Quality, r.Role)))
 }
 

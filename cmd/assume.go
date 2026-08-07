@@ -25,7 +25,8 @@ func init() {
 	assumeCmd.Flags().StringP("role", "r", "Administrator", "substrate role")
 	assumeCmd.Flags().StringP("format", "f", "export", "substrate environment")
 	assumeCmd.Flags().Bool("force", false, "always fetch new credentials")
-	assumeCmd.MarkFlagRequired("env")
-	assumeCmd.MarkFlagRequired("domain")
+	assumeCmd.Flags().Bool("management", false, "assume role in the management account")
+	assumeCmd.Flags().String("special", "", "assume role in a special account: audit, deploy, or network")
+	assumeCmd.MarkFlagsMutuallyExclusive("management", "special")
 	rootCmd.AddCommand(assumeCmd)
 }

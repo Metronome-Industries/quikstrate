@@ -3,17 +3,12 @@ package creds
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"os"
-	"path/filepath"
 
-	"github.com/bitfield/script"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 )
-
-var accountsFile = filepath.Join(CredsDir, "accounts.json")
 
 func AccountsCmd(cmd *cobra.Command, args []string) {
 	format := cmd.Flag("format").Value.String()
@@ -25,63 +20,45 @@ func AccountsCmd(cmd *cobra.Command, args []string) {
 	accountList.Print(format)
 }
 
-func getAccountList() (accountList AccountList, err error) {
-	accountList, err = readAccountsFile(accountsFile)
-	if err != nil {
-		log.Print("unable to read cached accounts file, calling substrate...")
-		accountList, err = refreshAccounts(accountsFile)
-	}
-	return
+func getAccountList() (AccountList, error) {
+	return buildStaticAccountList(), nil
 }
 
-func refreshAccounts(file string) (accountList AccountList, err error) {
-	defaultCreds, err := getDefaultCredentials()
-	if err != nil {
-		return
-	}
-	defaultCreds.SetEnv()
-
-	byteValue, err := script.NewPipe().WithStderr(os.Stderr).Exec("substrate account list --format json").Bytes()
-	if err != nil {
-		return
-	}
-
-	if err = json.Unmarshal(byteValue, &accountList.Accounts); err != nil {
-		return
-	}
-
-	err = writeAccountsFile(file, accountList)
-	return
+// Qualities for environments that exist in staticServiceAccounts but not in EnvironmentMap
+// (e.g. "admin"). Kept separate so EnvironmentMap stays scoped to configure/assume.
+var staticEnvironmentQualities = map[string]string{
+	"staging": "alpha",
+	"prod":    "gamma",
+	"admin":   "alpha",
 }
 
-func readAccountsFile(file string) (accountList AccountList, err error) {
-	jsonFile, err := os.Open(file)
-	if err != nil {
-		return
+// Construct AccountList from the hardcoded account maps
+func buildStaticAccountList() AccountList {
+	var accounts []Account
+	for key, id := range staticServiceAccounts {
+		domain, environment := key[0], key[1]
+		quality := staticEnvironmentQualities[environment]
+		accounts = append(accounts, Account{
+			Id:     id,
+			Name:   fmt.Sprintf("%s-%s", domain, environment),
+			Status: "ACTIVE",
+			Tags: map[string]string{
+				"Domain":      domain,
+				"Environment": environment,
+				"Quality":     quality,
+			},
+		})
 	}
-	defer jsonFile.Close()
-
-	byteValue, err := io.ReadAll(jsonFile)
-	if err != nil {
-		return
+	// Special accounts have no Domain/Environment/Quality tags — matches substrate account list behavior.
+	for name, id := range staticSpecialAccounts {
+		accounts = append(accounts, Account{
+			Id:     id,
+			Name:   name,
+			Status: "ACTIVE",
+			Tags:   map[string]string{},
+		})
 	}
-
-	err = json.Unmarshal(byteValue, &accountList)
-	return
-}
-
-func writeAccountsFile(file string, accountList AccountList) error {
-	jsonData, err := json.MarshalIndent(accountList, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	err = os.WriteFile(file, jsonData, 0644)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return AccountList{Accounts: accounts}
 }
 
 type Account struct {
@@ -124,7 +101,7 @@ func (a AccountList) Print(format string) {
 		}
 		t := table.NewWriter()
 		t.SetOutputMirror(os.Stdout)
-		t.AppendHeader(table.Row{"Domain", "Envionment", "Account Number", "AWS_PROFILE", "Console"})
+		t.AppendHeader(table.Row{"Domain", "Environment", "Account Number", "AWS_PROFILE", "Console"})
 		t.AppendRows(rows)
 		t.SortBy([]table.SortBy{
 			{Name: "Domain", Mode: table.Asc},
