@@ -19,23 +19,27 @@ var (
 	awsConfigFile  string = getenv("AWS_CONFIG_FILE", filepath.Join(home, ".aws/config"))
 	kubeConfigFile string = getenv("KUBECONFIG", filepath.Join(home, ".kube/config"))
 
-	configDryrun bool
-	configClean  bool
-	awsRegion    string
+	configDryrun            bool
+	configClean             bool
+	configUseIdentityCenter bool
+	configUseSubstrate      bool
+	awsRegion               string
 
 	binaryName = "quikstrate"
 	binaryPath string
 
-	// match fmt.Sprintf("%s-%s", environment, cluster.Domain)
 	kubeConfigSkips = []string{}
 
-	specialDomains = []string{"audit", "deploy", "network"} // management is special
+	// Substrate's "special" domains beyond management — audit/deploy/network each get their own AWS profile.
+	specialDomains = []string{"audit", "deploy", "network"}
 )
 
 func ConfigureCmd(cmd *cobra.Command, args []string) {
 	configClean, _ = strconv.ParseBool(cmd.Flag("clean").Value.String())
 	configDryrun, _ = strconv.ParseBool(cmd.Flag("dryrun").Value.String())
 	configCheck, _ := strconv.ParseBool(cmd.Flag("check").Value.String())
+	configUseIdentityCenter, _ = cmd.Flags().GetBool("use-identitycenter")
+	configUseSubstrate, _ = cmd.Flags().GetBool("use-substrate")
 	awsRegion = cmd.Flag("aws-region").Value.String()
 	environments := strings.Split(cmd.Flag("environments").Value.String(), ",")
 	domains := strings.Split(cmd.Flag("domains").Value.String(), ",")
@@ -55,6 +59,18 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 		}
 		log.Print("quikstrate configured correctly...")
 		os.Exit(0)
+	}
+
+	if !configDryrun {
+		if configUseIdentityCenter {
+			if err := writeQuikstrateConfig(quikstrateConfig{CredentialSource: "identitycenter"}); err != nil {
+				log.Fatal(err)
+			}
+		} else if configUseSubstrate {
+			if err := writeQuikstrateConfig(quikstrateConfig{CredentialSource: "substrate"}); err != nil {
+				log.Fatal(err)
+			}
+		}
 	}
 
 	err = configureAWSConfig(environments, domains)
@@ -77,19 +93,26 @@ func configureAWSConfig(environments, domains []string) error {
 
 	// reverse order so staging is before prod
 	sort.Sort(sort.Reverse(sort.StringSlice(environments)))
+
+	if configUseIdentityCenter || useIDC() {
+		// Write the sso-session block so engineers can run `aws sso login --sso-session metronome` on first use.
+		if err := writeSSOSessionConfig(metronomeIDCSessionName, metronomeIDCStartURL, metronomeIDCRegion); err != nil {
+			return err
+		}
+	}
+
 	for _, environment := range environments {
 		for _, domain := range domains {
 			profile := fmt.Sprintf("%s-%s", environment, domain)
 			setAWSProfile(profile, fmt.Sprintf("\"%s assume -e %s -d %s -f json\"", binaryPath, environment, domain), awsRegion)
 		}
 	}
-
 	setAWSProfile("management", fmt.Sprintf("\"%s assume --management -f json\"", binaryPath), awsRegion)
 	for _, domain := range specialDomains {
 		setAWSProfile(domain, fmt.Sprintf("\"%s assume --special %s -f json\"", binaryPath, domain), awsRegion)
 	}
-
 	setAWSConfigValue("default", "credential_process", fmt.Sprintf("\"%s credentials -f json\"", binaryPath))
+
 	setAWSConfigValue("default", "region", awsRegion)
 	return nil
 }
@@ -128,7 +151,6 @@ func configureKubeConfig(environments, domains []string) error {
 				continue
 			}
 
-			// aws eks update-config
 			cmd := fmt.Sprintf("aws eks update-kubeconfig --alias %[1]s-%[3]s --user-alias %[1]s-%[3]s --name %[3]s --profile %[1]s-%[2]s", environment, cluster.Domain, cluster.Name)
 			if configDryrun {
 				log.Printf("export AWS_PROFILE=%s\n", fmt.Sprintf("%s-%s", environment, cluster.Domain))
@@ -144,6 +166,7 @@ func configureKubeConfig(environments, domains []string) error {
 	}
 	return nil
 }
+
 func getenv(key, fallback string) string {
 	value := os.Getenv(key)
 	if len(value) == 0 {

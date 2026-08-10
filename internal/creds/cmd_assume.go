@@ -12,23 +12,26 @@ func AssumeCmd(cmd *cobra.Command, args []string) {
 	force, _ := cmd.Flags().GetBool("force")
 	management, _ := cmd.Flags().GetBool("management")
 	special, _ := cmd.Flags().GetString("special")
-	roleOverride := cmd.Flag("role").Value.String()
+	roleOverride, _ := cmd.Flags().GetString("role")
 
 	var roleData RoleData
+
 	switch {
 	case management:
+		// Special accounts default to engineersreadonly; pass --role admin for write access.
 		roleData = RoleData{SpecialAccount: "management", Role: roleOverride}
 	case special != "":
 		roleData = RoleData{SpecialAccount: special, Role: roleOverride}
 	default:
 		env := cmd.Flag("env").Value.String()
 		domain := cmd.Flag("domain").Value.String()
+		quality := cmd.Flag("quality").Value.String()
 		if env == "" || domain == "" {
 			cmd.Usage()
 			os.Exit(1)
 		}
 		var ok bool
-		roleData, ok = NewRoleData(env, domain, cmd.Flag("quality").Value.String(), roleOverride)
+		roleData, ok = NewRoleData(env, domain, quality, roleOverride)
 		if !ok {
 			log.Fatalf("unknown environment %q", env)
 		}
@@ -56,7 +59,6 @@ func NewRoleData(environment, domain, quality, role string) (RoleData, bool) {
 	if quality == "" {
 		quality = EnvironmentMap[environment].DefaultQuality
 	}
-
 	return RoleData{
 		Environment: environment,
 		Domain:      domain,

@@ -21,16 +21,16 @@ var (
 			Name:           "staging",
 			Aliases:        []string{"staging", "stg"},
 			DefaultQuality: "alpha",
-			DefaultRole:    "Administrator",
+			DefaultRole:    "admin",
 		},
 		"prod": {
 			Name:           "prod",
 			Aliases:        []string{"production", "prod", "prd"},
 			DefaultQuality: "gamma",
-			DefaultRole:    "Auditor",
+			DefaultRole:    "engineersreadonly",
 		},
 	}
-	Domains = []string{"api", "auth", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "network-staging", "notifications", "static-sites", "internal-services"}
+	Domains  = []string{"api", "auth", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "network-staging", "notifications", "static-sites", "internal-services"}
 	Clusters = []ClusterSpec{
 		{
 			Name:   "graphql",
@@ -74,14 +74,22 @@ type RoleData struct {
 }
 
 func (r RoleData) GetFilename() string {
+	suffix := ".json"
+	if useIDC() {
+		suffix = "-idc.json"
+	}
 	if r.SpecialAccount != "" {
 		role := r.Role
 		if role == "" {
-			role = "default"
+			role = "engineersreadonly"
 		}
-		return filepath.Join(CredsDir, fmt.Sprintf("special-%s-%s.json", r.SpecialAccount, role))
+		return filepath.Join(CredsDir, fmt.Sprintf("special-%s-%s%s", r.SpecialAccount, role, suffix))
 	}
-	return filepath.Join(CredsDir, strings.ToLower(fmt.Sprintf("%s-%s-%s-%s.json", r.Environment, r.Domain, r.Quality, r.Role)))
+	role := r.Role
+	if role == "" {
+		role = idcRoleForEnvironment(r.Environment)
+	}
+	return filepath.Join(CredsDir, strings.ToLower(fmt.Sprintf("%s-%s-%s-%s%s", r.Environment, r.Domain, r.Quality, role, suffix)))
 }
 
 func ensureAWSEnvSet() {

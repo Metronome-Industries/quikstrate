@@ -4,7 +4,7 @@
 # work against the expected AWS accounts. All AWS calls are read-only.
 #
 # Usage:
-#   ./scripts/regression_test.sh [--run-configure] [--run-drift]
+#   ./scripts/regression_test.sh [--run-configure]
 #
 #   --run-configure  Write real ~/.aws/config and ~/.kube/config, then verify
 #                    a sample of AWS_PROFILE values work end-to-end.
