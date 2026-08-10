@@ -21,16 +21,3 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
 
-brews:
-  - repository:
-      owner: Metronome-Industries
-      name: homebrew-metronome
-      branch: main
-    directory: Formula
-    homepage: https://github.com/Metronome-Industries/{{ .ProjectName }} 
-    dependencies:
-      - name: metronome-industries/metronome/substrate-tools
-      - name: kubectl
-      - name: kubectx
-      - name: awscli
-        type: optional
