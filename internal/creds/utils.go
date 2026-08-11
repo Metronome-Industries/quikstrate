@@ -21,16 +21,16 @@ var (
 			Name:           "staging",
 			Aliases:        []string{"staging", "stg"},
 			DefaultQuality: "alpha",
-			DefaultRole:    "admin",
+			DefaultRole:    "Administrator",
 		},
 		"prod": {
 			Name:           "prod",
 			Aliases:        []string{"production", "prod", "prd"},
 			DefaultQuality: "gamma",
-			DefaultRole:    "engineersreadonly",
+			DefaultRole:    "Auditor",
 		},
 	}
-	Domains  = []string{"api", "auth", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "network-staging", "notifications", "static-sites", "internal-services"}
+	Domains = []string{"api", "auth", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "network-staging", "notifications", "static-sites", "internal-services"}
 	Clusters = []ClusterSpec{
 		{
 			Name:   "graphql",
@@ -81,7 +81,7 @@ func (r RoleData) GetFilename() string {
 	if r.SpecialAccount != "" {
 		role := r.Role
 		if role == "" {
-			role = "engineersreadonly"
+			role = idcRoleReadOnly
 		}
 		return filepath.Join(CredsDir, fmt.Sprintf("special-%s-%s%s", r.SpecialAccount, role, suffix))
 	}

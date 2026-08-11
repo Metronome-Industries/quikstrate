@@ -15,6 +15,13 @@ import (
 
 const defaultRefreshTrigger = 5 * time.Minute
 
+const (
+	idcRoleAdmin    = "admin"
+	idcRoleReadOnly = "engineersreadonly"
+	substrateRoleAdmin    = "Administrator"
+	substrateRoleReadOnly = "Auditor"
+)
+
 type Credentials struct {
 	AccessKeyId     string    `json:"AccessKeyId"`
 	SecretAccessKey string    `json:"SecretAccessKey"`
@@ -85,6 +92,7 @@ func getCredsFromFile(file string) (Credentials, error) {
 
 func refreshCredentials(role RoleData, file string) (Credentials, error) {
 	creds, _ := getCredsFromFile(file)
+
 	if creds.needsRefresh() {
 		return getAndWriteCredentials(role, file)
 	}
@@ -101,9 +109,6 @@ func getAndWriteCredentials(role RoleData, file string) (Credentials, error) {
 	return creds, err
 }
 
-// getCredentials dispatches to the IDC or Substrate credential path based on the
-// engineer's configured credential source (set via qt configure --use-identitycenter
-// or overridden per-session with USE_SUBSTRATE=true/false).
 func getCredentials(role RoleData) (Credentials, error) {
 	if useIDC() {
 		return getIDCCredentials(role)
@@ -113,8 +118,7 @@ func getCredentials(role RoleData) (Credentials, error) {
 
 func getIDCCredentials(role RoleData) (Credentials, error) {
 	if role == (RoleData{}) {
-		// No role specified: return Substrate account credentials (engineers expect 666642175330 as the default).
-		return getMetronomeSSORoleCredentials(staticSpecialAccounts["substrate"], "engineersreadonly")
+		return getMetronomeSSORoleCredentials(staticSpecialAccounts["substrate"], idcRoleReadOnly)
 	}
 
 	if role.SpecialAccount != "" {
@@ -134,16 +138,16 @@ func getIDCCredentials(role RoleData) (Credentials, error) {
 	return getIDCRoleCredentials(accountID, roleName, role.Role == "", fmt.Sprintf("%s-%s", role.Environment, role.Domain))
 }
 
-// getIDCRoleCredentials fetches IDC credentials, automatically falling back to
-// engineersreadonly if admin was the environment default and isn't available.
+// getIDCRoleCredentials fetches IDC credentials, falling back to idcRoleReadOnly
+// if admin was the environment default and isn't available.
 func getIDCRoleCredentials(accountID, roleName string, autoFallback bool, label string) (Credentials, error) {
 	creds, err := getMetronomeSSORoleCredentials(accountID, roleName)
 	if err == nil {
 		return creds, nil
 	}
-	if autoFallback && roleName == "admin" && errors.Is(err, errPermissionSetNotAvailable) {
-		log.Printf("[quikstrate] admin not available for %s, using engineersreadonly\n", label)
-		if creds, err = getMetronomeSSORoleCredentials(accountID, "engineersreadonly"); err == nil {
+	if autoFallback && roleName == idcRoleAdmin && errors.Is(err, errPermissionSetNotAvailable) {
+		log.Printf("[quikstrate] %s not available for %s, using %s\n", idcRoleAdmin, label, idcRoleReadOnly)
+		if creds, err = getMetronomeSSORoleCredentials(accountID, idcRoleReadOnly); err == nil {
 			return creds, nil
 		}
 	}
@@ -163,34 +167,26 @@ func getSubstrateCredentials(role RoleData) (Credentials, error) {
 	return substrateAssumeRole(role)
 }
 
-// idcRoleForEnvironment returns the default IAM Identity Center permission set name.
-// Staging defaults to admin (engineers deploy there); prod defaults to read-only.
 func idcRoleForEnvironment(environment string) string {
 	if environment == "staging" {
-		return "admin"
+		return idcRoleAdmin
 	}
-	return "engineersreadonly"
+	return idcRoleReadOnly
 }
 
 // normalizeIDCRole converts old Substrate role names to IDC permission set names,
 // and fills in the environment default when no role is specified.
-// This ensures existing scripts that pass --role Administrator keep working.
+// This ensures existing scripts that pass --role Administrator or Auditor keep working.
 func normalizeIDCRole(role, environment string) string {
 	switch role {
-	case "", "Auditor":
+	case "", substrateRoleReadOnly:
 		return idcRoleForEnvironment(environment)
-	case "Administrator":
-		return "admin"
+	case substrateRoleAdmin:
+		return idcRoleAdmin
 	default:
-		// Assume it's already an IDC permission set name (admin, engineersreadonly, etc.)
 		return role
 	}
 }
-
-// ---- Substrate fallback helpers ----
-//
-// These are used when Metronome IAM Identity Center is unavailable, typically
-// because the engineer hasn't joined sso-metronome-identitycenter yet.
 
 func substrateBaseCredentials() (Credentials, error) {
 	cmd := "substrate credentials --format json --force"
@@ -204,13 +200,11 @@ func substrateBaseCredentials() (Credentials, error) {
 }
 
 func substrateAssumeRole(role RoleData) (Credentials, error) {
-	// substrate assume-role requires base credentials in the environment.
 	baseCreds, err := substrateBaseCredentials()
 	if err != nil {
 		return Credentials{}, err
 	}
 	baseCreds.SetEnv()
-
 	subRole := substrateRoleName(role.Role, role.Environment)
 	cmd := fmt.Sprintf("substrate assume-role --environment %s --domain %s --quality %s --role %s --format json",
 		role.Environment, role.Domain, role.Quality, subRole)
@@ -224,13 +218,11 @@ func substrateAssumeRole(role RoleData) (Credentials, error) {
 }
 
 func substrateSpecialCredentials(name string) (Credentials, error) {
-	// substrate assume-role requires base credentials in the environment.
 	baseCreds, err := substrateBaseCredentials()
 	if err != nil {
 		return Credentials{}, err
 	}
 	baseCreds.SetEnv()
-
 	var cmd string
 	if name == "management" {
 		cmd = "substrate assume-role --management --format json"
@@ -250,21 +242,20 @@ func substrateSpecialCredentials(name string) (Credentials, error) {
 // equivalent Substrate role name for the fallback path.
 func substrateRoleName(role, environment string) string {
 	switch role {
-	case "admin", "Administrator":
-		return "Administrator"
-	case "engineersreadonly", "Auditor", "":
+	case idcRoleAdmin, substrateRoleAdmin:
+		return substrateRoleAdmin
+	case idcRoleReadOnly, substrateRoleReadOnly, "":
 		if environment == "staging" {
-			return "Administrator"
+			return substrateRoleAdmin
 		}
-		return "Auditor"
+		return substrateRoleReadOnly
 	default:
 		return role
 	}
 }
 
-// defaultCredsFile returns the cache path for base (no-role) credentials.
-// IDC and Substrate have separate files so switching sources via USE_SUBSTRATE
-// or config always fetches fresh credentials from the right provider.
+// defaultCredsFile returns separate cache paths for IDC vs Substrate so
+// switching sources always fetches fresh credentials.
 func defaultCredsFile() string {
 	if useIDC() {
 		return filepath.Join(CredsDir, "credentials-idc.json")

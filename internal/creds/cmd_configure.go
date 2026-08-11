@@ -28,10 +28,10 @@ var (
 	binaryName = "quikstrate"
 	binaryPath string
 
+	// match fmt.Sprintf("%s-%s", environment, cluster.Domain)
 	kubeConfigSkips = []string{}
 
-	// Substrate's "special" domains beyond management — audit/deploy/network each get their own AWS profile.
-	specialDomains = []string{"audit", "deploy", "network"}
+	specialDomains = []string{"audit", "deploy", "network"} // management is special
 )
 
 func ConfigureCmd(cmd *cobra.Command, args []string) {
@@ -107,12 +107,13 @@ func configureAWSConfig(environments, domains []string) error {
 			setAWSProfile(profile, fmt.Sprintf("\"%s assume -e %s -d %s -f json\"", binaryPath, environment, domain), awsRegion)
 		}
 	}
+
 	setAWSProfile("management", fmt.Sprintf("\"%s assume --management -f json\"", binaryPath), awsRegion)
 	for _, domain := range specialDomains {
 		setAWSProfile(domain, fmt.Sprintf("\"%s assume --special %s -f json\"", binaryPath, domain), awsRegion)
 	}
-	setAWSConfigValue("default", "credential_process", fmt.Sprintf("\"%s credentials -f json\"", binaryPath))
 
+	setAWSConfigValue("default", "credential_process", fmt.Sprintf("\"%s credentials -f json\"", binaryPath))
 	setAWSConfigValue("default", "region", awsRegion)
 	return nil
 }
@@ -151,6 +152,7 @@ func configureKubeConfig(environments, domains []string) error {
 				continue
 			}
 
+			// aws eks update-config
 			cmd := fmt.Sprintf("aws eks update-kubeconfig --alias %[1]s-%[3]s --user-alias %[1]s-%[3]s --name %[3]s --profile %[1]s-%[2]s", environment, cluster.Domain, cluster.Name)
 			if configDryrun {
 				log.Printf("export AWS_PROFILE=%s\n", fmt.Sprintf("%s-%s", environment, cluster.Domain))
@@ -166,7 +168,6 @@ func configureKubeConfig(environments, domains []string) error {
 	}
 	return nil
 }
-
 func getenv(key, fallback string) string {
 	value := os.Getenv(key)
 	if len(value) == 0 {
