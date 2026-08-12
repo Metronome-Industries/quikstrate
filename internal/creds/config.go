@@ -31,10 +31,10 @@ func writeQuikstrateConfig(cfg quikstrateConfig) error {
 }
 
 // useIDC reports whether quikstrate should use Metronome IAM Identity Center.
-// Priority: USE_IDC env var > ~/.quikstrate/config.json > default (false = use Substrate).
+// Priority: USE_SUBSTRATE env var > ~/.quikstrate/config.json > default (Substrate).
 func useIDC() bool {
-	if v := os.Getenv("USE_IDC"); v != "" {
-		return v == "true"
+	if os.Getenv("USE_SUBSTRATE") == "true" {
+		return false
 	}
 	return readQuikstrateConfig().CredentialSource == "identitycenter"
 }

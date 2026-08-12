@@ -127,7 +127,7 @@ func getIDCCredentials(role RoleData) (Credentials, error) {
 		if err != nil {
 			return Credentials{}, err
 		}
-		return getIDCRoleCredentials(accountID, roleName, role.Role == "", role.SpecialAccount)
+		return getIDCRoleCredentials(accountID, roleName, role.SpecialAccount)
 	}
 
 	accountID, err := lookupServiceAccountID(role.Domain, role.Environment)
@@ -135,21 +135,13 @@ func getIDCCredentials(role RoleData) (Credentials, error) {
 		return Credentials{}, err
 	}
 	roleName := normalizeIDCRole(role.Role, role.Environment)
-	return getIDCRoleCredentials(accountID, roleName, role.Role == "", fmt.Sprintf("%s-%s", role.Environment, role.Domain))
+	return getIDCRoleCredentials(accountID, roleName, fmt.Sprintf("%s-%s", role.Environment, role.Domain))
 }
 
-// getIDCRoleCredentials fetches IDC credentials, falling back to idcRoleReadOnly
-// if admin was the environment default and isn't available.
-func getIDCRoleCredentials(accountID, roleName string, autoFallback bool, label string) (Credentials, error) {
+func getIDCRoleCredentials(accountID, roleName, label string) (Credentials, error) {
 	creds, err := getMetronomeSSORoleCredentials(accountID, roleName)
 	if err == nil {
 		return creds, nil
-	}
-	if autoFallback && roleName == idcRoleAdmin && errors.Is(err, errPermissionSetNotAvailable) {
-		log.Printf("[quikstrate] %s not available for %s, using %s\n", idcRoleAdmin, label, idcRoleReadOnly)
-		if creds, err = getMetronomeSSORoleCredentials(accountID, idcRoleReadOnly); err == nil {
-			return creds, nil
-		}
 	}
 	if errors.Is(err, errPermissionSetNotAvailable) {
 		return Credentials{}, fmt.Errorf("no %q permission set for %s", roleName, label)
@@ -179,8 +171,10 @@ func idcRoleForEnvironment(environment string) string {
 // This ensures existing scripts that pass --role Administrator or Auditor keep working.
 func normalizeIDCRole(role, environment string) string {
 	switch role {
-	case "", substrateRoleReadOnly:
+	case "":
 		return idcRoleForEnvironment(environment)
+	case substrateRoleReadOnly:
+		return idcRoleReadOnly
 	case substrateRoleAdmin:
 		return idcRoleAdmin
 	default:
@@ -200,7 +194,7 @@ func substrateBaseCredentials() (Credentials, error) {
 }
 
 func substrateAssumeRole(role RoleData) (Credentials, error) {
-	baseCreds, err := substrateBaseCredentials()
+	baseCreds, err := refreshCredentials(RoleData{}, DefaultCredsFile)
 	if err != nil {
 		return Credentials{}, err
 	}
@@ -218,7 +212,7 @@ func substrateAssumeRole(role RoleData) (Credentials, error) {
 }
 
 func substrateSpecialCredentials(name string) (Credentials, error) {
-	baseCreds, err := substrateBaseCredentials()
+	baseCreds, err := refreshCredentials(RoleData{}, DefaultCredsFile)
 	if err != nil {
 		return Credentials{}, err
 	}

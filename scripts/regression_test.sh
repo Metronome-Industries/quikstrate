@@ -64,7 +64,7 @@ assert_output() {
 assert_json() {
   local desc="$1"; shift
   local out
-  out=$("$@" 2>&1)
+  out=$("$@" 2>/dev/null)
   local code=$?
   if [[ $code -ne 0 ]]; then
     fail "$desc — exit $code"
@@ -81,15 +81,24 @@ json_field() { python3 -c "import sys,json; print(json.load(sys.stdin).get('$1',
 section() { echo; echo "── $1 ──────────────────────────────────────────────"; }
 
 # ── account sample ────────────────────────────────────────────────────────────
-# Representative assume-role targets: staging, prod, and the prod-only domain.
-# Source: metronome-substrate/substrate.accounts.txt
 # Key format: "<env>-<domain>"  Value: expected AWS account ID
+# Source: internal/creds/accounts.go
 declare -A SERVICE_ACCOUNTS=(
   ["staging-api"]="407752757973"
   ["staging-graphql"]="008444403661"
+  ["staging-integrations"]="637423284925"
+  ["staging-network-staging"]="075647413734"
   ["prod-api"]="477056945755"
   ["prod-graphql"]="051318803586"
+  ["prod-integrations"]="533267210102"
   ["prod-internal-services"]="207567762512"  # prod-only; staging variant must fail
+)
+
+declare -A SPECIAL_ACCOUNTS=(
+  ["management"]="420073272039"
+  ["audit"]="465454680116"
+  ["deploy"]="703712742941"
+  ["network"]="814412579886"
 )
 
 # Fields required by the AWS credential_process spec (fixed by AWS SDK, cannot change)
@@ -108,10 +117,20 @@ fi
 echo "  binary: $(command -v "$BIN")"
 
 if ! aws sts get-caller-identity > /dev/null 2>&1; then
-  echo "ERROR: No working AWS credentials. Source credentials before running."
+  echo "ERROR: No working AWS credentials."
+  echo "       Run: eval \$($BIN credentials --format export)"
   exit 1
 fi
 echo "  AWS identity: $(aws sts get-caller-identity --query Arn --output text)"
+
+# Clear the credential cache so every fetch in this run goes through the binary
+# under test. Without this, stale files from a previous run (or the installed
+# binary) can mask broken credential-fetch paths.
+if "$BIN" clean 2>/dev/null; then
+  echo "  cache cleared"
+else
+  echo "  WARN  cache clear failed; tests may use stale credentials"
+fi
 
 # ── configure ─────────────────────────────────────────────────────────────────
 # Runs first when --run-configure is passed so all subsequent tests use the
@@ -189,6 +208,8 @@ assert_fail "assume --domain only exits non-zero (missing --env)" "$BIN" assume 
 assert_fail "assume with invalid --env exits non-zero" "$BIN" assume --env badenv --domain api
 assert_fail "assume staging/internal-services exits non-zero (account does not exist)" \
   "$BIN" assume -e staging -d internal-services
+assert_fail "assume --management --special exits non-zero (mutually exclusive)" \
+  "$BIN" assume --management --special audit
 
 # Test a single env/domain: validate credential shape and verify the right AWS account
 test_assume() {
@@ -238,6 +259,41 @@ for key in "${!SERVICE_ACCOUNTS[@]}"; do
   test_assume "$acct_env" "$acct_domain" "${SERVICE_ACCOUNTS[$key]}"
 done
 
+section "assume: -f short flag"
+assert_json "assume -e staging -d api -f json is valid JSON" \
+  "$BIN" assume -e staging -d api -f json
+assert_json "assume --management -f json is valid JSON" \
+  "$BIN" assume --management -f json
+assert_json "credentials -f json is valid JSON" \
+  "$BIN" credentials -f json
+
+section "assume: --management and --special"
+test_assume_special() {
+  local name="$1" expected_account="$2"
+  local prefix="assume --special $name"
+  local json key secret token actual_account
+
+  json=$("$BIN" assume --special "$name" --format json 2>/dev/null) || {
+    fail "$prefix — command failed"; return
+  }
+  echo "$json" | python3 -m json.tool > /dev/null 2>&1 || { fail "$prefix — invalid JSON"; return; }
+
+  key=$(echo "$json" | json_field AccessKeyId)
+  secret=$(echo "$json" | json_field SecretAccessKey)
+  token=$(echo "$json" | json_field SessionToken)
+  actual_account=$(AWS_ACCESS_KEY_ID="$key" AWS_SECRET_ACCESS_KEY="$secret" AWS_SESSION_TOKEN="$token" \
+    aws sts get-caller-identity --query Account --output text 2>/dev/null) || {
+    fail "$prefix — sts get-caller-identity failed"; return
+  }
+  [[ "$actual_account" == "$expected_account" ]] \
+    && pass "$prefix — correct account ($actual_account)" \
+    || fail "$prefix — wrong account: got $actual_account, expected $expected_account"
+}
+
+for name in "${!SPECIAL_ACCOUNTS[@]}"; do
+  test_assume_special "$name" "${SPECIAL_ACCOUNTS[$name]}"
+done
+
 # ── accounts ─────────────────────────────────────────────────────────────────
 section "accounts"
 
@@ -246,6 +302,8 @@ assert_json "accounts --format json is valid JSON" "$BIN" accounts --format json
 assert_output "accounts --format json has Accounts array" '"Accounts"' "$BIN" accounts --format json
 assert_output "accounts --format json contains staging accounts" "staging" "$BIN" accounts --format json
 assert_output "accounts --format json contains prod accounts" "prod" "$BIN" accounts --format json
+assert_output "accounts --format text includes integrations" "integrations" "$BIN" accounts --format text
+assert_output "accounts --format text includes network-staging" "network-staging" "$BIN" accounts --format text
 
 # ── whoami ────────────────────────────────────────────────────────────────────
 section "whoami"
@@ -294,8 +352,15 @@ fi
 
 # ── clean ─────────────────────────────────────────────────────────────────────
 section "clean"
-echo "  INFO  Skipped to preserve credential cache from this run."
-echo "        To test manually: quikstrate clean && quikstrate credentials"
+
+# Populate a special-account cache file then verify clean removes it and a
+# subsequent fetch succeeds (tests the special-<name>-<role>.json naming).
+"$BIN" assume --special audit --format json > /dev/null 2>&1
+assert_ok "clean exits 0" "$BIN" clean
+assert_fail "special-account cache file removed after clean" \
+  bash -c "ls ~/.quikstrate/special-audit-*.json > /dev/null 2>&1"
+assert_json "assume --special audit works after clean (re-fetches)" \
+  "$BIN" assume --special audit --format json
 
 # ── summary ───────────────────────────────────────────────────────────────────
 echo

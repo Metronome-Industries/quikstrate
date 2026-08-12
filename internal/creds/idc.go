@@ -186,7 +186,7 @@ func getSSORoleCredentials(sessionName, startURL, region, accountID, roleName st
 // ---- Metronome IAM Identity Center ----
 //
 // Primary credential source. Engineers authenticate via Shibboleth (Stripe SSO)
-// at https://d-9267463e84.awsapps.com/start, gated by the sso-metronome-identitycenter LMS permission.
+// at https://d-9267463e84.awsapps.com/start, gated by the https://go/ldapg/access-metronome-aws-admin LMS permission.
 // This instance will be deprecated when Metronome accounts migrate to the Stripe AWS org (Oct 2026).
 
 const (
@@ -198,4 +198,3 @@ const (
 func getMetronomeSSORoleCredentials(accountID, roleName string) (Credentials, error) {
 	return getSSORoleCredentials(metronomeIDCSessionName, metronomeIDCStartURL, metronomeIDCRegion, accountID, roleName)
 }
-
