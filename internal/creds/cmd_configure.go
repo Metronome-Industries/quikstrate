@@ -95,7 +95,6 @@ func configureAWSConfig(environments, domains []string) error {
 	sort.Sort(sort.Reverse(sort.StringSlice(environments)))
 
 	if configUseIdentityCenter || useIDC() {
-		// Write the sso-session block so engineers can run `aws sso login --sso-session metronome` on first use.
 		if err := writeSSOSessionConfig(metronomeIDCSessionName, metronomeIDCStartURL, metronomeIDCRegion); err != nil {
 			return err
 		}
