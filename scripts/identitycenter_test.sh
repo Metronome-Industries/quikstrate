@@ -106,6 +106,22 @@ idc_clear_creds() {
   rm -f ~/.quikstrate/*-idc.json 2>/dev/null || true
 }
 
+# Remove every cache file (Substrate and IDC) for the env/domain and special
+# account fixtures below, so leftovers from earlier runs — including runs of
+# the real quikstrate binary against the same accounts — can't be mistaken
+# for files this run wrote.
+clear_fixture_caches() {
+  local key acct_env acct_domain
+  for key in "${!SERVICE_ACCOUNTS[@]}"; do
+    acct_env="${key%%-*}"
+    acct_domain="${key#*-}"
+    rm -f ~/.quikstrate/"${acct_env}-${acct_domain}"-*.json 2>/dev/null || true
+  done
+  for key in "${!SPECIAL_ACCOUNTS[@]}"; do
+    rm -f ~/.quikstrate/special-"${key}"-*.json 2>/dev/null || true
+  done
+}
+
 section() { echo; echo "── $1 ──────────────────────────────────────────────"; }
 
 # ── account fixtures ──────────────────────────────────────────────────────────
@@ -144,6 +160,9 @@ fi
 echo "  AWS identity: $(aws sts get-caller-identity --query Arn --output text)"
 
 echo "  IDC: login will be triggered automatically on first credential fetch if needed"
+
+clear_fixture_caches
+echo "  cleared cached credentials for fixture accounts"
 
 # Save the original config so it can be restored on exit regardless of outcome.
 SAVED_CONFIG=""
@@ -289,9 +308,11 @@ for key in "${!SERVICE_ACCOUNTS[@]}"; do
 
   rm -f ~/.quikstrate/"${acct_env}-${acct_domain}"-*-idc.json 2>/dev/null || true
 
-  json=$("$BIN" assume -e "$acct_env" -d "$acct_domain" $ROLE_FLAG --format json 2>/dev/null) || {
-    fail "$prefix — command failed"; continue
+  err=$(mktemp)
+  json=$("$BIN" assume -e "$acct_env" -d "$acct_domain" $ROLE_FLAG --format json 2>"$err") || {
+    fail "$prefix — command failed — $(tail -2 "$err" | tr '\n' ' ')"; rm -f "$err"; continue
   }
+  rm -f "$err"
   echo "$json" | python3 -m json.tool > /dev/null 2>&1 || { fail "$prefix — invalid JSON"; continue; }
 
   actual=$(aws_account_for_creds "$json") || { fail "$prefix — sts failed"; continue; }
@@ -321,26 +342,30 @@ section "IDC: role normalization"
 if [[ "$ENGINEERSREADONLY" == "true" ]]; then
   skip "IDC: --role Administrator normalizes to admin (pass without --engineersreadonly)"
 else
-  norm_json=$("$BIN" assume -e staging -d api --role Administrator --format json 2>/dev/null) || true
+  err=$(mktemp)
+  norm_json=$("$BIN" assume -e staging -d api --role Administrator --format json 2>"$err") || true
   if echo "$norm_json" | python3 -m json.tool > /dev/null 2>&1; then
     norm_acct=$(aws_account_for_creds "$norm_json")
     [[ "$norm_acct" == "407752757973" ]] \
       && pass "IDC: --role Administrator normalizes to admin (407752757973)" \
       || fail "IDC: --role Administrator — wrong account $norm_acct"
   else
-    fail "IDC: --role Administrator returned invalid JSON"
+    fail "IDC: --role Administrator returned invalid JSON — $(tail -2 "$err" | tr '\n' ' ')"
   fi
+  rm -f "$err"
 fi
 
-aud_json=$("$BIN" assume -e prod -d api --role Auditor --format json 2>/dev/null) || true
+err=$(mktemp)
+aud_json=$("$BIN" assume -e prod -d api --role Auditor --format json 2>"$err") || true
 if echo "$aud_json" | python3 -m json.tool > /dev/null 2>&1; then
   aud_acct=$(aws_account_for_creds "$aud_json")
   [[ "$aud_acct" == "477056945755" ]] \
     && pass "IDC: --role Auditor normalizes to engineersreadonly (477056945755)" \
     || fail "IDC: --role Auditor — wrong account $aud_acct"
 else
-  fail "IDC: --role Auditor returned invalid JSON"
+  fail "IDC: --role Auditor returned invalid JSON — $(tail -2 "$err" | tr '\n' ' ')"
 fi
+rm -f "$err"
 
 section "IDC: special accounts"
 

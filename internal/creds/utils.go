@@ -81,15 +81,13 @@ func (r RoleData) GetFilename() string {
 	if r.SpecialAccount != "" {
 		role := r.Role
 		if useIDC() {
-			role = normalizeIDCRole(r.Role, "prod")
+			role = normalizeIDCRole(r.Role)
 		}
 		return filepath.Join(CredsDir, fmt.Sprintf("special-%s-%s%s", r.SpecialAccount, role, suffix))
 	}
 	role := r.Role
 	if useIDC() {
-		role = normalizeIDCRole(r.Role, r.Environment)
-	} else if role == "" {
-		role = idcRoleForEnvironment(r.Environment)
+		role = normalizeIDCRole(r.Role)
 	}
 	return filepath.Join(CredsDir, strings.ToLower(fmt.Sprintf("%s-%s-%s-%s%s", r.Environment, r.Domain, r.Quality, role, suffix)))
 }

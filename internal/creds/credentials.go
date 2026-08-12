@@ -16,8 +16,8 @@ import (
 const defaultRefreshTrigger = 5 * time.Minute
 
 const (
-	idcRoleAdmin    = "admin"
-	idcRoleReadOnly = "engineersreadonly"
+	idcRoleAdmin          = "admin"
+	idcRoleReadOnly       = "engineersreadonly"
 	substrateRoleAdmin    = "Administrator"
 	substrateRoleReadOnly = "Auditor"
 )
@@ -122,7 +122,7 @@ func getIDCCredentials(role RoleData) (Credentials, error) {
 	}
 
 	if role.SpecialAccount != "" {
-		roleName := normalizeIDCRole(role.Role, "prod")
+		roleName := normalizeIDCRole(role.Role)
 		accountID, err := lookupSpecialAccountID(role.SpecialAccount)
 		if err != nil {
 			return Credentials{}, err
@@ -134,7 +134,7 @@ func getIDCCredentials(role RoleData) (Credentials, error) {
 	if err != nil {
 		return Credentials{}, err
 	}
-	roleName := normalizeIDCRole(role.Role, role.Environment)
+	roleName := normalizeIDCRole(role.Role)
 	return getIDCRoleCredentials(accountID, roleName, fmt.Sprintf("%s-%s", role.Environment, role.Domain))
 }
 
@@ -159,20 +159,10 @@ func getSubstrateCredentials(role RoleData) (Credentials, error) {
 	return substrateAssumeRole(role)
 }
 
-func idcRoleForEnvironment(environment string) string {
-	if environment == "staging" {
-		return idcRoleAdmin
-	}
-	return idcRoleReadOnly
-}
-
-// normalizeIDCRole converts old Substrate role names to IDC permission set names,
-// and fills in the environment default when no role is specified.
+// normalizeIDCRole converts old Substrate role names to IDC permission set names.
 // This ensures existing scripts that pass --role Administrator or Auditor keep working.
-func normalizeIDCRole(role, environment string) string {
+func normalizeIDCRole(role string) string {
 	switch role {
-	case "":
-		return idcRoleForEnvironment(environment)
 	case substrateRoleReadOnly:
 		return idcRoleReadOnly
 	case substrateRoleAdmin:
@@ -199,9 +189,8 @@ func substrateAssumeRole(role RoleData) (Credentials, error) {
 		return Credentials{}, err
 	}
 	baseCreds.SetEnv()
-	subRole := substrateRoleName(role.Role, role.Environment)
 	cmd := fmt.Sprintf("substrate assume-role --environment %s --domain %s --quality %s --role %s --format json",
-		role.Environment, role.Domain, role.Quality, subRole)
+		role.Environment, role.Domain, role.Quality, role.Role)
 	log.Print("running: ", cmd)
 	byteValue, err := script.NewPipe().WithStderr(os.Stderr).Exec(cmd).Bytes()
 	if err != nil {
@@ -230,22 +219,6 @@ func substrateSpecialCredentials(name string) (Credentials, error) {
 	}
 	var creds Credentials
 	return creds, json.Unmarshal(byteValue, &creds)
-}
-
-// substrateRoleName translates an IDC permission set name (or empty string) to the
-// equivalent Substrate role name for the fallback path.
-func substrateRoleName(role, environment string) string {
-	switch role {
-	case idcRoleAdmin, substrateRoleAdmin:
-		return substrateRoleAdmin
-	case idcRoleReadOnly, substrateRoleReadOnly, "":
-		if environment == "staging" {
-			return substrateRoleAdmin
-		}
-		return substrateRoleReadOnly
-	default:
-		return role
-	}
 }
 
 // defaultCredsFile returns separate cache paths for IDC vs Substrate so
