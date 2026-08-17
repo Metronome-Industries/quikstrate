@@ -19,9 +19,11 @@ var (
 	awsConfigFile  string = getenv("AWS_CONFIG_FILE", filepath.Join(home, ".aws/config"))
 	kubeConfigFile string = getenv("KUBECONFIG", filepath.Join(home, ".kube/config"))
 
-	configDryrun bool
-	configClean  bool
-	awsRegion    string
+	configDryrun            bool
+	configClean             bool
+	configUseIdentityCenter bool
+	configUseSubstrate      bool
+	awsRegion               string
 
 	binaryName = "quikstrate"
 	binaryPath string
@@ -36,6 +38,8 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	configClean, _ = strconv.ParseBool(cmd.Flag("clean").Value.String())
 	configDryrun, _ = strconv.ParseBool(cmd.Flag("dryrun").Value.String())
 	configCheck, _ := strconv.ParseBool(cmd.Flag("check").Value.String())
+	configUseIdentityCenter, _ = cmd.Flags().GetBool("use-identitycenter")
+	configUseSubstrate, _ = cmd.Flags().GetBool("use-substrate")
 	awsRegion = cmd.Flag("aws-region").Value.String()
 	environments := strings.Split(cmd.Flag("environments").Value.String(), ",")
 	domains := strings.Split(cmd.Flag("domains").Value.String(), ",")
@@ -55,6 +59,18 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 		}
 		log.Print("quikstrate configured correctly...")
 		os.Exit(0)
+	}
+
+	if !configDryrun {
+		if configUseIdentityCenter {
+			if err := writeQuikstrateConfig(quikstrateConfig{CredentialSource: "identitycenter"}); err != nil {
+				log.Fatal(err)
+			}
+		} else if configUseSubstrate {
+			if err := writeQuikstrateConfig(quikstrateConfig{CredentialSource: "substrate"}); err != nil {
+				log.Fatal(err)
+			}
+		}
 	}
 
 	err = configureAWSConfig(environments, domains)
@@ -77,6 +93,13 @@ func configureAWSConfig(environments, domains []string) error {
 
 	// reverse order so staging is before prod
 	sort.Sort(sort.Reverse(sort.StringSlice(environments)))
+
+	if configUseIdentityCenter || useIDC() {
+		if err := writeSSOSessionConfig(metronomeIDCSessionName, metronomeIDCStartURL, metronomeIDCRegion); err != nil {
+			return err
+		}
+	}
+
 	for _, environment := range environments {
 		for _, domain := range domains {
 			profile := fmt.Sprintf("%s-%s", environment, domain)

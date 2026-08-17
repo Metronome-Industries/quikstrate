@@ -19,7 +19,7 @@ func CredentialsCmd(cmd *cobra.Command, args []string) {
 	var creds Credentials
 	var err error
 	if force == "true" {
-		creds, err = getAndWriteCredentials(RoleData{}, DefaultCredsFile)
+		creds, err = getAndWriteCredentials(RoleData{}, defaultCredsFile())
 	} else {
 		creds, err = getDefaultCredentials()
 	}
@@ -29,12 +29,8 @@ func CredentialsCmd(cmd *cobra.Command, args []string) {
 	creds.Print(format)
 }
 
-func getDefaultCredentials() (Credentials, error) {
-	return refreshCredentials(RoleData{}, DefaultCredsFile)
-}
-
 func checkCredentials() {
-	creds, err := getCredsFromFile(DefaultCredsFile)
+	creds, err := getCredsFromFile(defaultCredsFile())
 	if err != nil || creds.needsRefresh() {
 		os.Exit(1)
 	}

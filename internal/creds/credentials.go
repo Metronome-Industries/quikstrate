@@ -7,12 +7,20 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/bitfield/script"
 )
 
 const defaultRefreshTrigger = 5 * time.Minute
+
+const (
+	idcRoleAdmin          = "admin"
+	idcRoleReadOnly       = "engineersreadonly"
+	substrateRoleAdmin    = "Administrator"
+	substrateRoleReadOnly = "Auditor"
+)
 
 type Credentials struct {
 	AccessKeyId     string    `json:"AccessKeyId"`
@@ -91,7 +99,57 @@ func refreshCredentials(role RoleData, file string) (Credentials, error) {
 	return creds, nil
 }
 
+func getAndWriteCredentials(role RoleData, file string) (Credentials, error) {
+	creds, err := getCredentials(role)
+	if err != nil {
+		return Credentials{}, err
+	}
+	log.Printf("writing credentials to %s (expiring in %s)\n", file, creds.Expiration.Sub(time.Now()).Round(time.Minute).String())
+	creds.Write(file)
+	return creds, err
+}
+
 func getCredentials(role RoleData) (Credentials, error) {
+	if useIDC() {
+		return getIDCCredentials(role)
+	}
+	return getSubstrateCredentials(role)
+}
+
+func getIDCCredentials(role RoleData) (Credentials, error) {
+	if role == (RoleData{}) {
+		return getMetronomeSSORoleCredentials(staticSpecialAccounts["substrate"], idcRoleReadOnly)
+	}
+
+	if role.SpecialAccount != "" {
+		roleName := normalizeIDCRole(role.Role)
+		accountID, err := lookupSpecialAccountID(role.SpecialAccount)
+		if err != nil {
+			return Credentials{}, err
+		}
+		return getIDCRoleCredentials(accountID, roleName, role.SpecialAccount)
+	}
+
+	accountID, err := lookupServiceAccountID(role.Domain, role.Environment)
+	if err != nil {
+		return Credentials{}, err
+	}
+	roleName := normalizeIDCRole(role.Role)
+	return getIDCRoleCredentials(accountID, roleName, fmt.Sprintf("%s-%s", role.Environment, role.Domain))
+}
+
+func getIDCRoleCredentials(accountID, roleName, label string) (Credentials, error) {
+	creds, err := getMetronomeSSORoleCredentials(accountID, roleName)
+	if err == nil {
+		return creds, nil
+	}
+	if errors.Is(err, errPermissionSetNotAvailable) {
+		return Credentials{}, fmt.Errorf("no %q permission set for %s", roleName, label)
+	}
+	return Credentials{}, err
+}
+
+func getSubstrateCredentials(role RoleData) (Credentials, error) {
 	if role == (RoleData{}) {
 		return substrateBaseCredentials()
 	}
@@ -99,6 +157,19 @@ func getCredentials(role RoleData) (Credentials, error) {
 		return substrateSpecialCredentials(role.SpecialAccount)
 	}
 	return substrateAssumeRole(role)
+}
+
+// normalizeIDCRole converts old Substrate role names to IDC permission set names.
+// This ensures existing scripts that pass --role Administrator or Auditor keep working.
+func normalizeIDCRole(role string) string {
+	switch role {
+	case substrateRoleReadOnly:
+		return idcRoleReadOnly
+	case substrateRoleAdmin:
+		return idcRoleAdmin
+	default:
+		return role
+	}
 }
 
 func substrateBaseCredentials() (Credentials, error) {
@@ -113,7 +184,7 @@ func substrateBaseCredentials() (Credentials, error) {
 }
 
 func substrateAssumeRole(role RoleData) (Credentials, error) {
-	baseCreds, err := getDefaultCredentials()
+	baseCreds, err := refreshCredentials(RoleData{}, DefaultCredsFile)
 	if err != nil {
 		return Credentials{}, err
 	}
@@ -130,7 +201,7 @@ func substrateAssumeRole(role RoleData) (Credentials, error) {
 }
 
 func substrateSpecialCredentials(name string) (Credentials, error) {
-	baseCreds, err := getDefaultCredentials()
+	baseCreds, err := refreshCredentials(RoleData{}, DefaultCredsFile)
 	if err != nil {
 		return Credentials{}, err
 	}
@@ -150,13 +221,15 @@ func substrateSpecialCredentials(name string) (Credentials, error) {
 	return creds, json.Unmarshal(byteValue, &creds)
 }
 
-func getAndWriteCredentials(role RoleData, file string) (Credentials, error) {
-	creds, err := getCredentials(role)
-	if err != nil {
-		return Credentials{}, err
+// defaultCredsFile returns separate cache paths for IDC vs Substrate so
+// switching sources always fetches fresh credentials.
+func defaultCredsFile() string {
+	if useIDC() {
+		return filepath.Join(CredsDir, "credentials-idc.json")
 	}
+	return DefaultCredsFile
+}
 
-	log.Printf("writing credentials to %s (expiring in %s)\n", file, creds.Expiration.Sub(time.Now()).Round(time.Minute).String())
-	creds.Write(file)
-	return creds, err
+func getDefaultCredentials() (Credentials, error) {
+	return refreshCredentials(RoleData{}, defaultCredsFile())
 }
