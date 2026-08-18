@@ -30,10 +30,11 @@ var configureCmd = &cobra.Command{
 func init() {
 	configureCmd.Flags().BoolP("clean", "c", false, "removes existing config files before configuring")
 	configureCmd.Flags().Bool("check", false, "checks if this command has been run before")
+	configureCmd.Flags().Bool("show", false, "prints the quikstrate version and current credential_source configuration")
 	configureCmd.Flags().BoolP("dryrun", "d", false, "removes existing config files before configuring")
 	configureCmd.Flags().Bool("use-identitycenter", false, "use Metronome IAM Identity Center as the credential source (write Identity Center block to ~/.aws/config)")
 	configureCmd.Flags().Bool("use-substrate", false, "use Substrate as the credential source (pair with --clean to hard delete Identity Center settings)")
-	configureCmd.MarkFlagsMutuallyExclusive("clean", "dryrun", "check")
+	configureCmd.MarkFlagsMutuallyExclusive("clean", "dryrun", "check", "show")
 	configureCmd.MarkFlagsMutuallyExclusive("use-identitycenter", "use-substrate")
 	configureCmd.Flags().String("aws-region", "us-west-2", "aws region to configure")
 	var defaultEnvs []string

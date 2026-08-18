@@ -38,6 +38,7 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	configClean, _ = strconv.ParseBool(cmd.Flag("clean").Value.String())
 	configDryrun, _ = strconv.ParseBool(cmd.Flag("dryrun").Value.String())
 	configCheck, _ := strconv.ParseBool(cmd.Flag("check").Value.String())
+	configShow, _ := strconv.ParseBool(cmd.Flag("show").Value.String())
 	configUseIdentityCenter, _ = cmd.Flags().GetBool("use-identitycenter")
 	configUseSubstrate, _ = cmd.Flags().GetBool("use-substrate")
 	awsRegion = cmd.Flag("aws-region").Value.String()
@@ -58,6 +59,17 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 			log.Fatal("quikstrate configure not run...\n", err)
 		}
 		log.Print("quikstrate configured correctly...")
+		os.Exit(0)
+	}
+
+	if configShow {
+		fmt.Printf("version: %s\n", cmd.Root().Version)
+		cfg := readQuikstrateConfig()
+		if cfg.CredentialSource == "" {
+			fmt.Printf("credential_source: (not set in %s)\n", quikstrateConfigFile)
+		} else {
+			fmt.Printf("credential_source: %s\n", cfg.CredentialSource)
+		}
 		os.Exit(0)
 	}
 
