@@ -9,7 +9,9 @@ var credentialsCmd = &cobra.Command{
 	Use:   "credentials",
 	Short: "Return cached credentials, if expired fetch and cache new ones",
 	Long: `The quikstrate credentials command maps 1:1 to the substrate credentials command.
-The only difference in usage is the "--force" flag, which will make quikstrate fetch and cache new credentials everytime.
+The only difference in usage is the "--force" flag, which will make quikstrate fetch and cache new credentials every time.
+
+When using Identity Center, authentication is direct to Identity Center instead of Substrate.
 
 It's recommended to add the following alias to your shell profile (eg. ~/.zshrc):
 alias creds="eval \$(quikstrate credentials)"`,

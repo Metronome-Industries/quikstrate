@@ -31,6 +31,18 @@ quikstrate configure
 
 To see what version of quikstrate you are running, run: `brew info quikstrate`
 
+## Credential sources: Substrate vs Identity Center
+
+By default, `quikstrate` fetches credentials via Substrate. To opt in to the temporary Metronome
+IAM Identity Center credential source, run:
+
+```bash
+quikstrate configure --use-identitycenter
+```
+
+See [IDENTITY_CENTER.md](IDENTITY_CENTER.md) for prerequisites, credential behavior, rollback, and
+troubleshooting.
+
 ## Deployment
 
 The `SSH Key - goreleaser` in 1Password was created and added (per [documentation](https://circleci.com/docs/github-integration/#create-additional-github-ssh-keys)) as a Github deploy key with write access and a CircleCI deploy key. The CircleCI `goreleaser` context contains a classic GITHUB_TOKEN with `delete:packages, repo, write:packages` permissions

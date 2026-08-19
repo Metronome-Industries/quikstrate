@@ -8,7 +8,7 @@ import (
 var assumeCmd = &cobra.Command{
 	Use:   "assume",
 	Short: "A stripped down version of the 'substrate assume-role' command.",
-	Long: `This command uses the default credentials to fetch and cache role specific credentials.  This is used extensively in ~/.aws/config profiles (and 
+	Long: `This command fetches and caches role-specific credentials, either using Substrate to assume the role or fetching them from Identity Center. This is used extensively in ~/.aws/config profiles (and
 kubectl through that).  The --env, --domain, --quality, and --role flags specify which credentials, and --format specifies the output.
 
 Similarly to "quikstrate credentials", the --force flag will always fetch new credentials.

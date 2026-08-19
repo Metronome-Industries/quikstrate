@@ -9,7 +9,7 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "quikstrate -h",
-	Short: "A substrate wrapper",
+	Short: "A substrate & identity center wrapper",
 	CompletionOptions: cobra.CompletionOptions{
 		DisableDefaultCmd: true,
 	},

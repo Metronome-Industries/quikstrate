@@ -22,6 +22,8 @@ var configureCmd = &cobra.Command{
 	kubectl:
 		- creates a context for each cluster
 		- uses the "aws eks update-kubeconfig" command to set the correct AWS_PROFILE for each context
+	identity center (idc):
+		- when idc is configured, adds an sso session block to ~/.aws/config
 	`,
 	Run:    creds.ConfigureCmd,
 	PreRun: creds.PreRunCmd,
