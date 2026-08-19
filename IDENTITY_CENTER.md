@@ -10,6 +10,25 @@ opt-in `quikstrate` credential source.
 - The [access-metronome-aws-admin](https://go/ldapg/access-metronome-aws-admin) LMS permission
 - An `aws` CLI recent enough to support `sso-session` config blocks
 
+## Update Quikstrate
+
+Identity Center support requires Quikstrate v1.0.33 or later. Update the Homebrew tap and upgrade
+Quikstrate before opting in:
+
+```bash
+brew update
+brew upgrade quikstrate
+brew info quikstrate
+```
+
+`brew info quikstrate` displays the installed version. If Homebrew reports that Quikstrate is not
+installed, run:
+
+```bash
+brew tap metronome-industries/metronome
+brew install quikstrate
+```
+
 ## Setup
 
 ```bash
@@ -54,6 +73,52 @@ To remove and rebuild local configuration, add `--clean`. This deletes and rebui
 
 ```bash
 quikstrate configure --use-substrate --clean
+```
+
+## Roll back Quikstrate to v1.0.28
+
+If the Identity Center release causes problems beyond the credential flow, v1.0.28 is the last
+known-good Quikstrate release from before the AWS account and Identity Center changes.
+
+First, unlink the Homebrew-managed binary and ensure `~/.local/bin` exists on your `PATH`:
+
+```bash
+brew unlink quikstrate
+mkdir -p ~/.local/bin
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Then download the v1.0.28 release for your Mac's architecture:
+
+```bash
+case "$(uname -m)" in
+  arm64) artifact="quikstrate_Darwin_arm64.tar.gz" ;;
+  x86_64) artifact="quikstrate_Darwin_x86_64.tar.gz" ;;
+  *) echo "Unsupported architecture: $(uname -m)"; return 1 ;;
+esac
+
+curl -fL \
+  "https://github.com/Metronome-Industries/quikstrate/releases/download/1.0.28/$artifact" \
+  -o "/tmp/$artifact"
+tar -xzf "/tmp/$artifact" -C ~/.local/bin quikstrate
+hash -r
+```
+
+Add `export PATH="$HOME/.local/bin:$PATH"` to `~/.zshrc` if it is not already present. Confirm that
+the rollback binary takes precedence over Homebrew:
+
+```bash
+which -a quikstrate
+```
+
+To return to the current Homebrew release later, delete the rollback binary and relink Homebrew:
+
+```bash
+rm ~/.local/bin/quikstrate
+brew update
+brew upgrade quikstrate
+brew link quikstrate
+hash -r
 ```
 
 ## Credential behavior
