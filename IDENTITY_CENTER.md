@@ -8,7 +8,7 @@ opt-in `quikstrate` credential source.
 ## Prerequisites
 
 - The [access-metronome-aws-admin](https://go/ldapg/access-metronome-aws-admin) LMS permission
-- An `aws` CLI recent enough to support `sso-session` config blocks
+- AWS CLI v2.9.0 or later
 
 ## Update Quikstrate
 
@@ -30,6 +30,8 @@ brew install quikstrate
 ```
 
 ## Setup
+
+A browser window will open when configuring kubectl that requires you to SSO with your Stripe Identity via Google. 
 
 ```bash
 quikstrate configure --use-identitycenter
@@ -150,7 +152,7 @@ aws sso login --sso-session metronome
 If an Identity Center workflow is blocked, prefix the command with `USE_SUBSTRATE=true`:
 
 ```bash
-USE_SUBSTRATE=true quikstrate assume --env staging --domain api
+eval "$(USE_SUBSTRATE=true quikstrate assume --env staging --domain api)"
 ```
 
 ### Requested permission set is unavailable
