@@ -7,7 +7,7 @@ import (
 
 var accountsCmd = &cobra.Command{
 	Use:   "accounts",
-	Short: "Caches and returns the results of the 'substrate accounts' command.",
+	Short: "Simulates the 'substrate accounts' command, based on a hardcoded list of Metronome AWS accounts.",
 	Long: `The quikstrate accounts default output is slightly different from substrate.  Extraneous information 
 like the account email and Administrator role ARN are removed in favor of the gnome.house console URL and AWS_PROFILE snippet.
 

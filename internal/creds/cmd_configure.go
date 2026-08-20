@@ -61,6 +61,11 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 		os.Exit(0)
 	}
 
+	if configClean && !configDryrun {
+		log.Print("Removing existing quikstrate config")
+		os.Remove(quikstrateConfigFile)
+	}
+
 	if !configDryrun {
 		if configUseIdentityCenter {
 			if err := writeQuikstrateConfig(quikstrateConfig{CredentialSource: "identitycenter"}); err != nil {
