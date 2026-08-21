@@ -118,7 +118,7 @@ func getCredentials(role RoleData) (Credentials, error) {
 
 func getIDCCredentials(role RoleData) (Credentials, error) {
 	if role == (RoleData{}) {
-		return getMetronomeSSORoleCredentials(staticSpecialAccounts["substrate"], idcRoleReadOnly)
+		return getMetronomeSSORoleCredentials(staticSpecialAccounts["substrate"], idcRoleAdmin)
 	}
 
 	if role.SpecialAccount != "" {
