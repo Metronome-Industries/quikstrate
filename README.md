@@ -1,57 +1,49 @@
 # quikstrate
 
-Wrapper of `substrate` CLI to cache credentials for faster authentication and configure `aws` and `kubectl` config files for easier profile and context switching.
-
-Under the hood `quikstrate` is caching and reusing the credentials returned by substrate in `~/.quikstrate/`
+`quikstrate` configures AWS and kubectl profiles and caches short-lived AWS credentials.
 
 ## Installing
 
 ```bash
-# probably already done
 brew tap metronome-industries/metronome
-
 brew update
 brew install quikstrate
 ```
 
 ## Usage
 
-Run the command with `-h` or `--help` for detailed usage statements!
-
 ```bash
-# view usage
-quikstrate -h
-
-# same as `substrate credentials` but ~quicker~ (run it twice to see the difference)
 quikstrate credentials
-
-# updates ~/.aws/config and ~/.kube/config
 quikstrate configure
 ```
 
-To see what version of quikstrate you are running, run: `brew info quikstrate`
+IAM Identity Center is the default credential source. Run `quikstrate configure` once after upgrading; it validates AWS CLI v2.9.0 or newer, writes both the Stripe and temporary Metronome SSO sessions, and updates quikstrate-managed credential-process profiles without removing unrelated AWS configuration.
 
-## Credential sources: Substrate vs Identity Center
+During migration, `~/.quikstrate/config.json` contains `metronome_idc_account_ids`. Accounts in that shrinking exception list try Metronome IDC first; all others try Stripe IDC first. If the preferred organization lacks an assignment, quikstrate tries the other IDC organization and reports both errors when neither works.
 
-By default, `quikstrate` fetches credentials via Substrate. To opt in to the temporary Metronome
-IAM Identity Center credential source, run:
+Migration operators update routing idempotently by environment or account:
 
 ```bash
-quikstrate configure --use-identitycenter
+quikstrate configure --mark-stripe-idc staging
+quikstrate configure --mark-stripe-idc prod
+quikstrate configure --mark-stripe-idc admin
+quikstrate configure --mark-stripe-idc 407752757973
+quikstrate configure --mark-metronome-idc 407752757973
 ```
 
-See [IDENTITY_CENTER.md](IDENTITY_CENTER.md) for prerequisites, credential behavior, rollback, and
-troubleshooting.
+`Administrator` remains the default and maps to the IDC `admin` permission set. Request read-only IDC access with `--role engineersreadonly`; `--role Auditor` is accepted only in explicit Substrate mode.
+
+Temporary Substrate rollback remains explicit:
+
+```bash
+quikstrate configure --use-substrate
+USE_SUBSTRATE=true quikstrate credentials
+```
+
+Substrate cannot access accounts after they migrate and does not replace a missing Stripe assignment. For migration diagnosis, a command can target one IDC instance with `QUIKSTRATE_IDC_INSTANCE=metronome|stripe`.
+
+See [IDENTITY_CENTER.md](IDENTITY_CENTER.md) for migration details, prerequisites, cache behavior, and troubleshooting.
 
 ## Deployment
 
-The `SSH Key - goreleaser` in 1Password was created and added (per [documentation](https://circleci.com/docs/github-integration/#create-additional-github-ssh-keys)) as a Github deploy key with write access and a CircleCI deploy key. The CircleCI `goreleaser` context contains a classic GITHUB_TOKEN with `delete:packages, repo, write:packages` permissions
-for publishing to the `metronome-industries/homebrew-metronome` tap.
-
-## Links
-
-- <https://github.com/substrate-maintainers/substrate/blob/main/docs/access/aws-cli-profiles.md>
-- <https://github.com/spf13/cobra/>
-- <https://github.com/bitfield/script>
-- <https://github.com/aws/aws-sdk-go-v2>
-- <https://goreleaser.com/>
+The `SSH Key - goreleaser` in 1Password is configured as a GitHub and CircleCI deploy key. The CircleCI `goreleaser` context publishes release artifacts; the Homebrew formula is updated in a separate follow-up PR.

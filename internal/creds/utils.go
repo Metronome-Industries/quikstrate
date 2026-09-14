@@ -27,10 +27,10 @@ var (
 			Name:           "prod",
 			Aliases:        []string{"production", "prod", "prd"},
 			DefaultQuality: "gamma",
-			DefaultRole:    "Auditor",
+			DefaultRole:    "Administrator",
 		},
 	}
-	Domains = []string{"api", "auth", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "network-staging", "notifications", "static-sites", "internal-services"}
+	Domains  = []string{"api", "auth", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "network-staging", "notifications", "static-sites", "internal-services"}
 	Clusters = []ClusterSpec{
 		{
 			Name:   "graphql",
@@ -74,10 +74,31 @@ type RoleData struct {
 }
 
 func (r RoleData) GetFilename() string {
-	suffix := ".json"
 	if useIDC() {
-		suffix = "-idc.json"
+		accountID := staticSpecialAccounts["substrate"]
+		if r.SpecialAccount != "" {
+			accountID, _ = lookupSpecialAccountID(r.SpecialAccount)
+		} else if r.Domain != "" {
+			accountID, _ = lookupServiceAccountID(r.Domain, r.Environment)
+		}
+		instances, _ := preferredIDCInstances(accountID)
+		instanceName := stripeIDC.Name
+		if len(instances) > 0 {
+			instanceName = instances[0].Name
+		}
+		return r.getFilename("-" + instanceName + "-idc.json")
 	}
+	return r.getFilename(".json")
+}
+
+func (r RoleData) idcFilename(instanceName string) string {
+	if r == (RoleData{}) {
+		return filepath.Join(CredsDir, "credentials-"+instanceName+"-idc.json")
+	}
+	return r.getFilename("-" + instanceName + "-idc.json")
+}
+
+func (r RoleData) getFilename(suffix string) string {
 	if r.SpecialAccount != "" {
 		role := r.Role
 		if useIDC() {
