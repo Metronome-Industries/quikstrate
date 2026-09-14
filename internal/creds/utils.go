@@ -27,10 +27,10 @@ var (
 			Name:           "prod",
 			Aliases:        []string{"production", "prod", "prd"},
 			DefaultQuality: "gamma",
-			DefaultRole:    "Auditor",
+			DefaultRole:    "Administrator",
 		},
 	}
-	Domains = []string{"api", "auth", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "network-staging", "notifications", "static-sites", "internal-services"}
+	Domains  = []string{"api", "auth", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "network-staging", "notifications", "static-sites", "internal-services"}
 	Clusters = []ClusterSpec{
 		{
 			Name:   "graphql",
@@ -75,21 +75,32 @@ type RoleData struct {
 
 func (r RoleData) GetFilename() string {
 	suffix := ".json"
-	if useIDC() {
-		suffix = "-idc.json"
+	if usingIDC() {
+		accountID := staticSpecialAccounts["substrate"]
+		if r.SpecialAccount != "" {
+			accountID = staticSpecialAccounts[r.SpecialAccount]
+		} else if r != (RoleData{}) {
+			accountID, _ = lookupServiceAccountID(r.Domain, r.Environment)
+		}
+		suffix = fmt.Sprintf("-%s-idc.json", preferredIDCInstanceName(accountID))
 	}
 	if r.SpecialAccount != "" {
 		role := r.Role
-		if useIDC() {
-			role = normalizeIDCRole(r.Role)
+		if usingIDC() {
+			role, _ = normalizeIDCRole(r.Role)
 		}
 		return filepath.Join(CredsDir, fmt.Sprintf("special-%s-%s%s", r.SpecialAccount, role, suffix))
 	}
 	role := r.Role
-	if useIDC() {
-		role = normalizeIDCRole(r.Role)
+	if usingIDC() {
+		role, _ = normalizeIDCRole(r.Role)
 	}
 	return filepath.Join(CredsDir, strings.ToLower(fmt.Sprintf("%s-%s-%s-%s%s", r.Environment, r.Domain, r.Quality, role, suffix)))
+}
+
+func preferredIDCInstanceName(accountID string) string {
+	instance, _ := preferredIDCInstances(accountID)
+	return instance.Name
 }
 
 func ensureAWSEnvSet() {

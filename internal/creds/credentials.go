@@ -110,7 +110,7 @@ func getAndWriteCredentials(role RoleData, file string) (Credentials, error) {
 }
 
 func getCredentials(role RoleData) (Credentials, error) {
-	if useIDC() {
+	if usingIDC() {
 		return getIDCCredentials(role)
 	}
 	return getSubstrateCredentials(role)
@@ -118,11 +118,14 @@ func getCredentials(role RoleData) (Credentials, error) {
 
 func getIDCCredentials(role RoleData) (Credentials, error) {
 	if role == (RoleData{}) {
-		return getMetronomeSSORoleCredentials(staticSpecialAccounts["substrate"], idcRoleAdmin)
+		return getIDCRoleCredentials(staticSpecialAccounts["substrate"], idcRoleAdmin, "admin")
 	}
 
 	if role.SpecialAccount != "" {
-		roleName := normalizeIDCRole(role.Role)
+		roleName, err := normalizeIDCRole(role.Role)
+		if err != nil {
+			return Credentials{}, err
+		}
 		accountID, err := lookupSpecialAccountID(role.SpecialAccount)
 		if err != nil {
 			return Credentials{}, err
@@ -134,19 +137,39 @@ func getIDCCredentials(role RoleData) (Credentials, error) {
 	if err != nil {
 		return Credentials{}, err
 	}
-	roleName := normalizeIDCRole(role.Role)
+	roleName, err := normalizeIDCRole(role.Role)
+	if err != nil {
+		return Credentials{}, err
+	}
 	return getIDCRoleCredentials(accountID, roleName, fmt.Sprintf("%s-%s", role.Environment, role.Domain))
 }
 
 func getIDCRoleCredentials(accountID, roleName, label string) (Credentials, error) {
-	creds, err := getMetronomeSSORoleCredentials(accountID, roleName)
+	primary, secondary := preferredIDCInstances(accountID)
+	creds, err := getIDCCredentialsForInstance(primary, accountID, roleName)
 	if err == nil {
 		return creds, nil
 	}
-	if errors.Is(err, errPermissionSetNotAvailable) {
-		return Credentials{}, fmt.Errorf("no %q permission set for %s", roleName, label)
+	secondaryCreds, secondaryErr := getIDCCredentialsForInstance(secondary, accountID, roleName)
+	if secondaryErr == nil {
+		return secondaryCreds, nil
 	}
-	return Credentials{}, err
+	return Credentials{}, fmt.Errorf("getting %q credentials for %s from %s IDC: %w; %s IDC also failed: %v", roleName, label, primary.Name, err, secondary.Name, secondaryErr)
+}
+
+func preferredIDCInstances(accountID string) (idcInstance, idcInstance) {
+	if override := os.Getenv("QUIKSTRATE_IDC_INSTANCE"); override == "metronome" {
+		return metronomeIDC, stripeIDC
+	}
+	if override := os.Getenv("QUIKSTRATE_IDC_INSTANCE"); override == "stripe" {
+		return stripeIDC, metronomeIDC
+	}
+	for _, id := range metronomeIDCAccountIDs() {
+		if id == accountID {
+			return metronomeIDC, stripeIDC
+		}
+	}
+	return stripeIDC, metronomeIDC
 }
 
 func getSubstrateCredentials(role RoleData) (Credentials, error) {
@@ -159,16 +182,14 @@ func getSubstrateCredentials(role RoleData) (Credentials, error) {
 	return substrateAssumeRole(role)
 }
 
-// normalizeIDCRole converts old Substrate role names to IDC permission set names.
-// This ensures existing scripts that pass --role Administrator or Auditor keep working.
-func normalizeIDCRole(role string) string {
+func normalizeIDCRole(role string) (string, error) {
 	switch role {
 	case substrateRoleReadOnly:
-		return idcRoleReadOnly
+		return "", fmt.Errorf("Auditor is not an IAM Identity Center permission set; use --role %s (or explicitly select Substrate)", idcRoleReadOnly)
 	case substrateRoleAdmin:
-		return idcRoleAdmin
+		return idcRoleAdmin, nil
 	default:
-		return role
+		return role, nil
 	}
 }
 
@@ -224,8 +245,8 @@ func substrateSpecialCredentials(name string) (Credentials, error) {
 // defaultCredsFile returns separate cache paths for IDC vs Substrate so
 // switching sources always fetches fresh credentials.
 func defaultCredsFile() string {
-	if useIDC() {
-		return filepath.Join(CredsDir, "credentials-idc.json")
+	if usingIDC() {
+		return filepath.Join(CredsDir, fmt.Sprintf("credentials-%s-idc.json", preferredIDCInstanceName(staticSpecialAccounts["substrate"])))
 	}
 	return DefaultCredsFile
 }

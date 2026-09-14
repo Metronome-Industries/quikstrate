@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -18,7 +19,29 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sso"
 	"github.com/aws/aws-sdk-go-v2/service/sso/types"
 	smithy "github.com/aws/smithy-go"
+	version "github.com/hashicorp/go-version"
 )
+
+type idcInstance struct {
+	Name     string
+	StartURL string
+	Region   string
+}
+
+var (
+	metronomeIDC     = idcInstance{Name: "metronome", StartURL: "https://d-9267463e84.awsapps.com/start", Region: "us-west-2"}
+	stripeIDC        = idcInstance{Name: "stripe", StartURL: "https://d-9267fda1d4.awsapps.com/start", Region: "us-west-2"}
+	awsCommand       = exec.Command
+	awsVersionOutput = func() (string, error) {
+		output, err := awsCommand("aws", "--version").CombinedOutput()
+		return string(output), err
+	}
+	getIDCCredentialsForInstance = func(instance idcInstance, accountID, roleName string) (Credentials, error) {
+		return getSSORoleCredentials(instance.Name, instance.StartURL, instance.Region, accountID, roleName)
+	}
+)
+
+const awsCLIVersionHelp = "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
 
 // ssoToken mirrors the subset of fields the AWS CLI writes to ~/.aws/sso/cache/*.json.
 type ssoToken struct {
@@ -115,7 +138,10 @@ func getSSOToken(sessionName, startURL, region string) (ssoToken, error) {
 	if err := writeSSOSessionConfig(sessionName, startURL, region); err != nil {
 		return ssoToken{}, err
 	}
-	cmd := exec.Command("aws", "sso", "login", "--sso-session", sessionName)
+	if err := checkAWSCLIVersion(); err != nil {
+		return ssoToken{}, err
+	}
+	cmd := awsCommand("aws", "sso", "login", "--sso-session", sessionName)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stderr // must use stderr so login prompts don't pollute eval $() captures
 	cmd.Stderr = os.Stderr
@@ -127,6 +153,29 @@ func getSSOToken(sessionName, startURL, region string) (ssoToken, error) {
 		return ssoToken{}, fmt.Errorf("reading SSO token after login: %w", err)
 	}
 	return token, nil
+}
+
+func checkAWSCLIVersion() error {
+	output, err := awsVersionOutput()
+	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			return fmt.Errorf("AWS CLI executable not found; install AWS CLI v2.9.0 or newer: %s", awsCLIVersionHelp)
+		}
+		return fmt.Errorf("running aws --version: %w", err)
+	}
+	match := regexp.MustCompile(`aws-cli/([0-9][^ ]*)`).FindStringSubmatch(output)
+	if len(match) != 2 {
+		return fmt.Errorf("could not parse AWS CLI version from %q; install AWS CLI v2.9.0 or newer: %s", strings.TrimSpace(output), awsCLIVersionHelp)
+	}
+	actual, err := version.NewVersion(match[1])
+	if err != nil || actual.Segments()[0] != 2 {
+		return fmt.Errorf("could not parse AWS CLI v2 version from %q; install AWS CLI v2.9.0 or newer: %s", match[1], awsCLIVersionHelp)
+	}
+	required := version.Must(version.NewVersion("2.9.0"))
+	if actual.LessThan(required) {
+		return fmt.Errorf("AWS CLI %s is too old; AWS CLI v2.9.0 or newer is required for Identity Center. Upgrade: %s. USE_SUBSTRATE=true is a temporary fallback while Substrate remains available", actual, awsCLIVersionHelp)
+	}
+	return nil
 }
 
 var errPermissionSetNotAvailable = errors.New("permission set not available")
@@ -180,16 +229,6 @@ func exchangeSSOToken(region, accountID, roleName string, token ssoToken) (Crede
 	}, nil
 }
 
-// ---- Metronome IAM Identity Center ----
-// Opt-in credential source
-// Gated by the https://go/ldapg/access-metronome-aws-admin
-// This instance is retired when Metronome accounts migrate to the Stripe AWS org
-const (
-	metronomeIDCStartURL    = "https://d-9267463e84.awsapps.com/start"
-	metronomeIDCRegion      = "us-west-2"
-	metronomeIDCSessionName = "metronome"
-)
-
 func getMetronomeSSORoleCredentials(accountID, roleName string) (Credentials, error) {
-	return getSSORoleCredentials(metronomeIDCSessionName, metronomeIDCStartURL, metronomeIDCRegion, accountID, roleName)
+	return getIDCCredentialsForInstance(metronomeIDC, accountID, roleName)
 }

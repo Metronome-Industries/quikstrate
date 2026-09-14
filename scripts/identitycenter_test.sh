@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Test suite for the Metronome IDC credential source feature.
+# Test suite for mixed Metronome and Stripe IDC routing.
 #
 # Covers:
-#   1. Substrate path is unaffected when IDC is not configured.
-#   2. configure --use-identitycenter routes all commands through IDC.
-#   3. USE_SUBSTRATE=true forces Substrate even when IDC is configured.
-#   4. configure --use-substrate reverts to Substrate.
+#   1. IDC is the default and writes instance-specific caches.
+#   2. Metronome exception-list routing and Stripe cutover commands work.
+#   3. USE_SUBSTRATE=true and configure --use-substrate remain explicit fallbacks.
 #
 # Usage:
 #   ./scripts/identitycenter_test.sh [--engineersreadonly] [--run-configure]
@@ -102,7 +101,7 @@ aws_account_for_creds() {
 
 # Remove all IDC credential cache files so tests don't reuse stale credentials.
 idc_clear_creds() {
-  rm -f ~/.quikstrate/credentials-idc.json
+  rm -f ~/.quikstrate/credentials-*-idc.json
   rm -f ~/.quikstrate/*-idc.json 2>/dev/null || true
 }
 
@@ -181,25 +180,14 @@ trap restore_config EXIT
 
 # ── Section 1: Substrate path (default, no IDC config) ───────────────────────
 
-section "Substrate: default (no IDC config)"
+section "IDC: default (no config)"
 
 rm -f ~/.quikstrate/config.json
-"$BIN" credentials --force --format json > /dev/null 2>&1
+"$BIN" credentials --force --format json > /dev/null 2>&1 || true
 
-assert_ok "Substrate: credentials.json written" \
-  test -f ~/.quikstrate/credentials.json
+assert_ok "IDC: instance-specific credentials cache written" \
+  bash -c 'compgen -G "$HOME/.quikstrate/credentials-*-idc.json" > /dev/null'
 
-if [[ -f ~/.quikstrate/credentials-idc.json ]]; then
-  substrate_mtime=$(stat -f %m ~/.quikstrate/credentials.json  2>/dev/null || stat -c %Y ~/.quikstrate/credentials.json  2>/dev/null)
-  idc_mtime=$(stat -f %m ~/.quikstrate/credentials-idc.json 2>/dev/null || stat -c %Y ~/.quikstrate/credentials-idc.json 2>/dev/null)
-  if [[ "$idc_mtime" -ge "$substrate_mtime" ]]; then
-    fail "Substrate: credentials-idc.json was freshly written (should not be)"
-  else
-    pass "Substrate: credentials-idc.json not freshly written"
-  fi
-else
-  pass "Substrate: credentials-idc.json does not exist"
-fi
 
 # ── Section 2: configure --use-identitycenter ────────────────────────────────
 
@@ -237,16 +225,16 @@ if [[ "$RUN_CONFIGURE" == "true" ]]; then
   python3 -c "
 import sys
 data = open('$HOME/.aws/config').read()
-sys.exit(0 if '[sso-session metronome]' in data else 1)
+sys.exit(0 if '[sso-session metronome]' in data and '[sso-session stripe]' in data else 1)
 " 2>/dev/null \
-    && pass "IDC: [sso-session metronome] block in ~/.aws/config" \
-    || fail "IDC: [sso-session metronome] block missing from ~/.aws/config"
+    && pass "IDC: Metronome and Stripe SSO session blocks in ~/.aws/config" \
+    || fail "IDC: required SSO session blocks missing from ~/.aws/config"
 
   "$BIN" configure --use-identitycenter > /dev/null 2>&1 || true
-  block_count=$(python3 -c "print(open('$HOME/.aws/config').read().count('[sso-session metronome]'))")
-  [[ "$block_count" == "1" ]] \
-    && pass "IDC: configure --use-identitycenter is idempotent (1 sso-session block)" \
-    || fail "IDC: configure --use-identitycenter produced $block_count sso-session blocks"
+  block_count=$(python3 -c "d=open('$HOME/.aws/config').read(); print(d.count('[sso-session metronome]') + d.count('[sso-session stripe]'))")
+  [[ "$block_count" == "2" ]] \
+    && pass "IDC: configure --use-identitycenter is idempotent (2 SSO session blocks)" \
+    || fail "IDC: configure --use-identitycenter produced $block_count SSO session blocks"
 else
   skip "IDC: sso-session block check (pass --run-configure)"
   skip "IDC: configure idempotency check (pass --run-configure)"
@@ -262,8 +250,8 @@ SUBSTRATE_MTIME_BEFORE=$(stat -f %m ~/.quikstrate/credentials.json 2>/dev/null \
 idc_clear_creds
 "$BIN" credentials --force --format json > /dev/null 2>&1
 
-assert_ok "IDC: credentials-idc.json written after --force" \
-  test -f ~/.quikstrate/credentials-idc.json
+assert_ok "IDC: instance-specific credentials cache written after --force" \
+  bash -c 'compgen -G "$HOME/.quikstrate/credentials-*-idc.json" > /dev/null'
 
 SUBSTRATE_MTIME_AFTER=$(stat -f %m ~/.quikstrate/credentials.json 2>/dev/null \
   || stat -c %Y ~/.quikstrate/credentials.json 2>/dev/null || echo 0)
@@ -337,7 +325,7 @@ done
 assert_fail "IDC: assume staging/internal-services exits non-zero" \
   "$BIN" assume -e staging -d internal-services
 
-section "IDC: role normalization"
+section "IDC: role behavior"
 
 if [[ "$ENGINEERSREADONLY" == "true" ]]; then
   skip "IDC: --role Administrator normalizes to admin (pass without --engineersreadonly)"
@@ -355,17 +343,8 @@ else
   rm -f "$err"
 fi
 
-err=$(mktemp)
-aud_json=$("$BIN" assume -e prod -d api --role Auditor --format json 2>"$err") || true
-if echo "$aud_json" | python3 -m json.tool > /dev/null 2>&1; then
-  aud_acct=$(aws_account_for_creds "$aud_json")
-  [[ "$aud_acct" == "477056945755" ]] \
-    && pass "IDC: --role Auditor normalizes to engineersreadonly (477056945755)" \
-    || fail "IDC: --role Auditor — wrong account $aud_acct"
-else
-  fail "IDC: --role Auditor returned invalid JSON — $(tail -2 "$err" | tr '\n' ' ')"
-fi
-rm -f "$err"
+assert_fail "IDC: --role Auditor is rejected; use engineersreadonly" \
+  "$BIN" assume -e prod -d api --role Auditor --format json
 
 section "IDC: special accounts"
 
