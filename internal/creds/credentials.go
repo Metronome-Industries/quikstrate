@@ -28,6 +28,7 @@ type Credentials struct {
 	SessionToken    string    `json:"SessionToken"`
 	Expiration      time.Time `json:"Expiration"`
 	Version         int       `json:"Version"`
+	IDCInstance     string    `json:"-"`
 }
 
 func (c Credentials) Print(format string) {
@@ -104,21 +105,31 @@ func getAndWriteCredentials(role RoleData, file string) (Credentials, error) {
 	if err != nil {
 		return Credentials{}, err
 	}
+	if creds.IDCInstance != "" {
+		file = role.idcFilename(creds.IDCInstance)
+	}
 	log.Printf("writing credentials to %s (expiring in %s)\n", file, creds.Expiration.Sub(time.Now()).Round(time.Minute).String())
 	creds.Write(file)
 	return creds, err
 }
 
 func getCredentials(role RoleData) (Credentials, error) {
-	if useIDC() {
+	source, err := resolveCredentialSource()
+	if err != nil {
+		return Credentials{}, err
+	}
+	if source == credentialSourceIdentityCenter {
 		return getIDCCredentials(role)
 	}
 	return getSubstrateCredentials(role)
 }
 
 func getIDCCredentials(role RoleData) (Credentials, error) {
+	if role.Role == substrateRoleReadOnly {
+		return Credentials{}, fmt.Errorf("role %q is a Substrate role and is not available through Identity Center; use --role %s", substrateRoleReadOnly, idcRoleReadOnly)
+	}
 	if role == (RoleData{}) {
-		return getMetronomeSSORoleCredentials(staticSpecialAccounts["substrate"], idcRoleAdmin)
+		return getIDCRoleCredentials(staticSpecialAccounts["substrate"], idcRoleAdmin, "admin")
 	}
 
 	if role.SpecialAccount != "" {
@@ -138,15 +149,40 @@ func getIDCCredentials(role RoleData) (Credentials, error) {
 	return getIDCRoleCredentials(accountID, roleName, fmt.Sprintf("%s-%s", role.Environment, role.Domain))
 }
 
+func preferredIDCInstances(accountID string) ([]idcInstance, error) {
+	if override := os.Getenv("QUIKSTRATE_IDC_INSTANCE"); override != "" {
+		switch override {
+		case metronomeIDC.Name:
+			return []idcInstance{metronomeIDC}, nil
+		case stripeIDC.Name:
+			return []idcInstance{stripeIDC}, nil
+		default:
+			return nil, fmt.Errorf("invalid QUIKSTRATE_IDC_INSTANCE %q; expected metronome or stripe", override)
+		}
+	}
+	for _, id := range metronomeIDCAccountIDs() {
+		if id == accountID {
+			return []idcInstance{metronomeIDC, stripeIDC}, nil
+		}
+	}
+	return []idcInstance{stripeIDC, metronomeIDC}, nil
+}
+
 func getIDCRoleCredentials(accountID, roleName, label string) (Credentials, error) {
-	creds, err := getMetronomeSSORoleCredentials(accountID, roleName)
-	if err == nil {
-		return creds, nil
+	instances, err := preferredIDCInstances(accountID)
+	if err != nil {
+		return Credentials{}, err
 	}
-	if errors.Is(err, errPermissionSetNotAvailable) {
-		return Credentials{}, fmt.Errorf("no %q permission set for %s", roleName, label)
+	attemptErrors := make([]error, 0, len(instances))
+	for _, instance := range instances {
+		creds, err := idcCredentialProvider(instance, accountID, roleName)
+		if err == nil {
+			creds.IDCInstance = instance.Name
+			return creds, nil
+		}
+		attemptErrors = append(attemptErrors, fmt.Errorf("%s Identity Center: %w", instance.Name, err))
 	}
-	return Credentials{}, err
+	return Credentials{}, fmt.Errorf("unable to get %q credentials for %s: %w", roleName, label, errors.Join(attemptErrors...))
 }
 
 func getSubstrateCredentials(role RoleData) (Credentials, error) {
@@ -159,12 +195,9 @@ func getSubstrateCredentials(role RoleData) (Credentials, error) {
 	return substrateAssumeRole(role)
 }
 
-// normalizeIDCRole converts old Substrate role names to IDC permission set names.
-// This ensures existing scripts that pass --role Administrator or Auditor keep working.
+// normalizeIDCRole converts the public Administrator default to the IDC name.
 func normalizeIDCRole(role string) string {
 	switch role {
-	case substrateRoleReadOnly:
-		return idcRoleReadOnly
 	case substrateRoleAdmin:
 		return idcRoleAdmin
 	default:
@@ -225,7 +258,12 @@ func substrateSpecialCredentials(name string) (Credentials, error) {
 // switching sources always fetches fresh credentials.
 func defaultCredsFile() string {
 	if useIDC() {
-		return filepath.Join(CredsDir, "credentials-idc.json")
+		instances, _ := preferredIDCInstances(staticSpecialAccounts["substrate"])
+		instanceName := stripeIDC.Name
+		if len(instances) > 0 {
+			instanceName = instances[0].Name
+		}
+		return filepath.Join(CredsDir, "credentials-"+instanceName+"-idc.json")
 	}
 	return DefaultCredsFile
 }

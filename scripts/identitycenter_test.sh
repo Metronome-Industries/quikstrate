@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 # Test suite for the Metronome IDC credential source feature.
 #
-# Covers:
-#   1. Substrate path is unaffected when IDC is not configured.
-#   2. configure --use-identitycenter routes all commands through IDC.
-#   3. USE_SUBSTRATE=true forces Substrate even when IDC is configured.
-#   4. configure --use-substrate reverts to Substrate.
+# Covers IDC-by-default behavior, dual-instance migration routing, instance-specific
+# caches, admin/read-only roles, and both explicit Substrate fallback mechanisms.
 #
 # Usage:
 #   ./scripts/identitycenter_test.sh [--engineersreadonly] [--run-configure]
@@ -179,12 +176,12 @@ restore_config() {
 }
 trap restore_config EXIT
 
-# ── Section 1: Substrate path (default, no IDC config) ───────────────────────
+# ── Section 1: explicit Substrate fallback ───────────────────────────────────
 
-section "Substrate: default (no IDC config)"
+section "Substrate: explicit USE_SUBSTRATE fallback"
 
 rm -f ~/.quikstrate/config.json
-"$BIN" credentials --force --format json > /dev/null 2>&1
+env USE_SUBSTRATE=true "$BIN" credentials --force --format json > /dev/null 2>&1
 
 assert_ok "Substrate: credentials.json written" \
   test -f ~/.quikstrate/credentials.json
@@ -219,7 +216,20 @@ if [[ "$RUN_CONFIGURE" == "true" ]]; then
   "$BIN" configure --use-identitycenter > /dev/null 2>&1
 else
   mkdir -p ~/.quikstrate
-  echo '{"credential_source":"identitycenter"}' > ~/.quikstrate/config.json
+  printf '{"credential_source":"identitycenter","metronome_idc_account_ids":%s}\n' \
+    "$(python3 - <<'PY'
+import json
+accounts = {
+  '407752757973','477056945755','015545333344','614579421457','035220036306',
+  '905418052488','008444403661','051318803586','464715055874','601156230221',
+  '637423284925','533267210102','207567762512','445357087344','355843283871',
+  '802783861107','088932849318','501845335119','916227654331','075647413734',
+  '909838927472','078168529438','414118243174','447219469935','666642175330',
+  '420073272039','465454680116','703712742941','814412579886'
+}
+print(json.dumps(sorted(accounts)))
+PY
+)" > ~/.quikstrate/config.json
   echo
   echo "  INFO  Pass --run-configure to write ~/.aws/config and test AWS_PROFILE end-to-end."
 fi
@@ -237,10 +247,10 @@ if [[ "$RUN_CONFIGURE" == "true" ]]; then
   python3 -c "
 import sys
 data = open('$HOME/.aws/config').read()
-sys.exit(0 if '[sso-session metronome]' in data else 1)
+sys.exit(0 if '[sso-session metronome]' in data and '[sso-session stripe]' in data else 1)
 " 2>/dev/null \
-    && pass "IDC: [sso-session metronome] block in ~/.aws/config" \
-    || fail "IDC: [sso-session metronome] block missing from ~/.aws/config"
+    && pass "IDC: both Metronome and Stripe sso-session blocks are in ~/.aws/config" \
+    || fail "IDC: one or both sso-session blocks are missing from ~/.aws/config"
 
   "$BIN" configure --use-identitycenter > /dev/null 2>&1 || true
   block_count=$(python3 -c "print(open('$HOME/.aws/config').read().count('[sso-session metronome]'))")
@@ -262,8 +272,8 @@ SUBSTRATE_MTIME_BEFORE=$(stat -f %m ~/.quikstrate/credentials.json 2>/dev/null \
 idc_clear_creds
 "$BIN" credentials --force --format json > /dev/null 2>&1
 
-assert_ok "IDC: credentials-idc.json written after --force" \
-  test -f ~/.quikstrate/credentials-idc.json
+assert_output "IDC: instance-specific base cache written after --force" "credentials-(metronome|stripe)-idc.json" \
+  bash -c "ls '$HOME'/.quikstrate/credentials-*-idc.json"
 
 SUBSTRATE_MTIME_AFTER=$(stat -f %m ~/.quikstrate/credentials.json 2>/dev/null \
   || stat -c %Y ~/.quikstrate/credentials.json 2>/dev/null || echo 0)
@@ -397,7 +407,37 @@ for field in AccountID Domain Environment Quality Role User; do
   [[ -n "$val" ]] && pass "IDC: whoami has $field" || fail "IDC: whoami missing $field"
 done
 
-# ── Section 4: USE_SUBSTRATE=true escape hatch ───────────────────────────────
+# ── Section 4: mixed-organization migration routing ──────────────────────────
+
+section "IDC: migration routing and role behavior"
+
+METRONOME_COUNT=$(python3 -c "import json; print(len(json.load(open('$HOME/.quikstrate/config.json')).get('metronome_idc_account_ids', [])))")
+[[ "$METRONOME_COUNT" -gt 0 ]] \
+  && pass "IDC: initial Metronome exception list is seeded" \
+  || fail "IDC: initial Metronome exception list is not seeded"
+
+assert_ok "IDC: staging wave can be marked Stripe" "$BIN" configure --mark-stripe-idc staging
+assert_output "IDC: staging account uses Stripe-specific cache" "stripe-idc.json" \
+  bash -c "'$BIN' assume --env staging --domain api --force --format json >/dev/null 2>&1; ls '$HOME'/.quikstrate/staging-api-*-stripe-idc.json"
+
+assert_ok "IDC: one production account can move independently" "$BIN" configure --mark-stripe-idc 477056945755
+assert_ok "IDC: independently moved account can roll back" "$BIN" configure --mark-metronome-idc 477056945755
+assert_ok "IDC: production wave can be marked Stripe" "$BIN" configure --mark-stripe-idc prod
+assert_ok "IDC: admin wave can be marked Stripe" "$BIN" configure --mark-stripe-idc admin
+
+FINAL_METRONOME_COUNT=$(python3 -c "import json; print(len(json.load(open('$HOME/.quikstrate/config.json'))['metronome_idc_account_ids']))")
+[[ "$FINAL_METRONOME_COUNT" == "0" ]] \
+  && pass "IDC: final Metronome exception list is explicitly empty" \
+  || fail "IDC: final Metronome exception list contains $FINAL_METRONOME_COUNT accounts"
+
+assert_ok "IDC: persistent admin permission set works" \
+  "$BIN" assume --env staging --domain api --role Administrator --force --format json
+assert_ok "IDC: engineersreadonly permission set works" \
+  "$BIN" assume --env prod --domain api --role engineersreadonly --force --format json
+assert_output "IDC: Auditor is rejected with actionable guidance" "--role engineersreadonly" \
+  bash -c "'$BIN' assume --env prod --domain api --role Auditor --force --format json 2>&1 || true"
+
+# ── Section 5: USE_SUBSTRATE=true escape hatch ───────────────────────────────
 
 section "USE_SUBSTRATE=true escape hatch (IDC configured, forcing Substrate)"
 
@@ -418,7 +458,7 @@ else
   pass "Escape hatch: credentials-idc.json does not exist"
 fi
 
-# ── Section 5: configure --use-substrate (revert) ────────────────────────────
+# ── Section 6: configure --use-substrate (revert) ────────────────────────────
 
 section "configure --use-substrate (revert to Substrate)"
 

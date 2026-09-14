@@ -1,6 +1,9 @@
 package creds
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // Hardcode [domain, environment] to AWS account IDs to remove dependency on Substrate
 var staticServiceAccounts = map[[2]string]string{
@@ -52,4 +55,51 @@ func lookupSpecialAccountID(name string) (string, error) {
 		return id, nil
 	}
 	return "", fmt.Errorf("unknown special account %q. Update accounts.go with account id.", name)
+}
+
+func allAccountIDs() []string {
+	set := map[string]bool{}
+	for _, id := range staticServiceAccounts {
+		set[id] = true
+	}
+	for _, id := range staticSpecialAccounts {
+		set[id] = true
+	}
+	ids := make([]string, 0, len(set))
+	for id := range set {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+func accountIDsForSelection(selection string) ([]string, error) {
+	set := map[string]bool{}
+	switch selection {
+	case "staging", "prod":
+		for key, id := range staticServiceAccounts {
+			if key[1] == selection {
+				set[id] = true
+			}
+		}
+	case "admin":
+		for _, id := range staticSpecialAccounts {
+			set[id] = true
+		}
+	case "":
+		return nil, fmt.Errorf("account selection must be staging, prod, admin, or a 12-digit account ID")
+	default:
+		for _, id := range allAccountIDs() {
+			if id == selection {
+				return []string{id}, nil
+			}
+		}
+		return nil, fmt.Errorf("unknown account selection %q; expected staging, prod, admin, or a known account ID", selection)
+	}
+	ids := make([]string, 0, len(set))
+	for id := range set {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids, nil
 }

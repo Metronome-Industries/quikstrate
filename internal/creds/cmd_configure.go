@@ -23,6 +23,8 @@ var (
 	configClean             bool
 	configUseIdentityCenter bool
 	configUseSubstrate      bool
+	configMarkStripeIDC     string
+	configMarkMetronomeIDC  string
 	awsRegion               string
 
 	binaryName = "quikstrate"
@@ -40,6 +42,8 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	configCheck, _ := strconv.ParseBool(cmd.Flag("check").Value.String())
 	configUseIdentityCenter, _ = cmd.Flags().GetBool("use-identitycenter")
 	configUseSubstrate, _ = cmd.Flags().GetBool("use-substrate")
+	configMarkStripeIDC, _ = cmd.Flags().GetString("mark-stripe-idc")
+	configMarkMetronomeIDC, _ = cmd.Flags().GetString("mark-metronome-idc")
 	awsRegion = cmd.Flag("aws-region").Value.String()
 	environments := strings.Split(cmd.Flag("environments").Value.String(), ",")
 	domains := strings.Split(cmd.Flag("domains").Value.String(), ",")
@@ -67,17 +71,33 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	}
 
 	if !configDryrun {
+		cfg := seededQuikstrateConfig()
 		if configUseIdentityCenter {
-			if err := writeQuikstrateConfig(quikstrateConfig{CredentialSource: "identitycenter"}); err != nil {
-				log.Fatal(err)
-			}
+			cfg.CredentialSource = string(credentialSourceIdentityCenter)
 		} else if configUseSubstrate {
-			if err := writeQuikstrateConfig(quikstrateConfig{CredentialSource: "substrate"}); err != nil {
+			cfg.CredentialSource = string(credentialSourceSubstrate)
+		}
+		if configMarkStripeIDC != "" || configMarkMetronomeIDC != "" {
+			selection := configMarkStripeIDC
+			useMetronome := false
+			if configMarkMetronomeIDC != "" {
+				selection = configMarkMetronomeIDC
+				useMetronome = true
+			}
+			if err := updateIDCAccountSelection(&cfg, selection, useMetronome); err != nil {
 				log.Fatal(err)
 			}
 		}
+		if err := writeQuikstrateConfig(cfg); err != nil {
+			log.Fatal(err)
+		}
 	}
 
+	if useIDC() {
+		if err := validateAWSCLI(); err != nil {
+			log.Fatal(err)
+		}
+	}
 	err = configureAWSConfig(environments, domains)
 	if err != nil {
 		log.Fatal(err)
@@ -87,6 +107,33 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func updateIDCAccountSelection(cfg *quikstrateConfig, selection string, useMetronome bool) error {
+	selected, err := accountIDsForSelection(selection)
+	if err != nil {
+		return err
+	}
+	current := map[string]bool{}
+	if cfg.MetronomeIDCAccountIDs != nil {
+		for _, id := range *cfg.MetronomeIDCAccountIDs {
+			current[id] = true
+		}
+	}
+	for _, id := range selected {
+		if useMetronome {
+			current[id] = true
+		} else {
+			delete(current, id)
+		}
+	}
+	ids := make([]string, 0, len(current))
+	for id := range current {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	cfg.MetronomeIDCAccountIDs = &ids
+	return nil
 }
 
 func configureAWSConfig(environments, domains []string) error {
@@ -100,8 +147,10 @@ func configureAWSConfig(environments, domains []string) error {
 	sort.Sort(sort.Reverse(sort.StringSlice(environments)))
 
 	if configUseIdentityCenter || useIDC() {
-		if err := writeSSOSessionConfig(metronomeIDCSessionName, metronomeIDCStartURL, metronomeIDCRegion); err != nil {
-			return err
+		for _, instance := range []idcInstance{metronomeIDC, stripeIDC} {
+			if err := writeIDCSessionConfig(instance); err != nil {
+				return err
+			}
 		}
 	}
 
