@@ -2,9 +2,10 @@
 
 `quikstrate` now uses IAM Identity Center (IDC) by default. During the AWS organization migration
 it supports both the temporary Metronome instance and Stripe's instance. Stripe IDC is attempted
-first except for account IDs in the local `metronome_idc_account_ids` exception list. If the
-preferred instance is unavailable or lacks an assignment, quikstrate attempts the other IDC
-instance. It never silently falls back to Substrate.
+first except for account IDs in the local `metronome_idc_account_ids` list. The
+`stripe_idc_account_ids` list records explicit cutovers; an account in neither list defaults to
+Stripe. If the preferred instance is unavailable or lacks an assignment, quikstrate attempts the
+other IDC instance. It never silently falls back to Substrate.
 
 ## Prerequisites
 
@@ -42,8 +43,7 @@ This:
 
 - Writes both `[sso-session metronome]` and `[sso-session stripe]` blocks to `~/.aws/config`.
 - On the first run, seeds `metronome_idc_account_ids` in `~/.quikstrate/config.json` with every
-  known Metronome account. An explicitly empty list is preserved and means all accounts use Stripe
-  IDC first.
+  known Metronome account and initializes `stripe_idc_account_ids` as empty.
 - Re-runs the normal `configure` flow, so existing `aws` and `kubectl` commands continue to use
   the same profiles and contexts. The configured credential processes resolve through Identity
   Center under the hood.
@@ -55,25 +55,44 @@ required for every command.
 
 ## Move accounts between IDC instances
 
-After an account is migrated and access is provisioned through Stripe's migration process, remove
-it from the local Metronome exception list. These commands are idempotent and preserve unrelated
+After an account is migrated and access is provisioned through Stripe's migration process, move it
+from the Metronome list to the Stripe list. These commands are idempotent and preserve unrelated
 AWS configuration:
 
 ```bash
-quikstrate configure --mark-stripe-idc staging
-quikstrate configure --mark-stripe-idc prod
-quikstrate configure --mark-stripe-idc admin
-quikstrate configure --mark-stripe-idc 407752757973
+quikstrate idc stripe staging
+quikstrate idc stripe prod
+quikstrate idc stripe admin
+quikstrate idc stripe 407752757973
 ```
 
 To undo a rehearsal or temporarily restore Metronome-first routing, use the inverse command:
 
 ```bash
-quikstrate configure --mark-metronome-idc staging
+quikstrate idc metronome staging
 ```
 
 `QUIKSTRATE_IDC_INSTANCE=metronome|stripe` forces the preferred instance for one command and is
 intended for migration diagnosis.
+
+## Stripe regional failover
+
+During an outage of Stripe IDC's primary `us-west-2` region, follow the
+[IDC Regional Outage Runbook](https://trailhead.corp.stripe.com/docs/cloud-security-internal/run-and-on-call-runbooks/operational-runbooks/idc-regional-outage-runbook)
+and enable the common CLI failover switch:
+
+```bash
+export SC_USE_ALTERNATE_REGION=true
+```
+
+Stripe IDC requests then use the replicated `us-east-2` instance at
+`https://ssoins-7907aa69624c0735.portal.us-east-2.app.aws`. Its SSO token and role credentials use
+the distinct `stripe-us-east-2` session/cache name. Metronome IDC remains in `us-west-2` and has no
+regional failover. Unset the variable after the incident:
+
+```bash
+unset SC_USE_ALTERNATE_REGION
+```
 
 ## Explicit Substrate fallback
 
@@ -153,8 +172,9 @@ hash -r
 - **Command usage does not change.** Continue to use `quikstrate assume`, `quikstrate credentials`,
   `aws --profile ...`, and existing Kubernetes contexts regardless of the credential source.
 - **Credential caches are instance-specific.** IDC credentials use names such as
-  `prod-api-gamma-administrator-stripe-idc.json`. Authenticate again once per IDC instance after
-  an organization move; do not rely on old generic `*-idc.json` files.
+  `prod-api-gamma-admin-stripe-idc.json`, based on the instance that actually returned them. A
+  fallback to Metronome is therefore written to a `*-metronome-idc.json` file. Authenticate again
+  once per IDC instance after an organization move; do not rely on old generic `*-idc.json` files.
 - **Role names.** `Administrator` maps to IDC's `admin` permission set. Read-only IDC callers must
   use `--role engineersreadonly`; `--role Auditor` returns an actionable error in IDC mode. Explicit
   Substrate mode continues to accept `Auditor`.

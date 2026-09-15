@@ -23,8 +23,6 @@ var (
 	configClean             bool
 	configUseIdentityCenter bool
 	configUseSubstrate      bool
-	configMarkStripeIDC     string
-	configMarkMetronomeIDC  string
 	awsRegion               string
 
 	binaryName = "quikstrate"
@@ -42,8 +40,6 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	configCheck, _ := strconv.ParseBool(cmd.Flag("check").Value.String())
 	configUseIdentityCenter, _ = cmd.Flags().GetBool("use-identitycenter")
 	configUseSubstrate, _ = cmd.Flags().GetBool("use-substrate")
-	configMarkStripeIDC, _ = cmd.Flags().GetString("mark-stripe-idc")
-	configMarkMetronomeIDC, _ = cmd.Flags().GetString("mark-metronome-idc")
 	awsRegion = cmd.Flag("aws-region").Value.String()
 	environments := strings.Split(cmd.Flag("environments").Value.String(), ",")
 	domains := strings.Split(cmd.Flag("domains").Value.String(), ",")
@@ -87,31 +83,9 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 			ids := allAccountIDs()
 			cfg.MetronomeIDCAccountIDs = &ids
 		}
-		if configMarkStripeIDC != "" || configMarkMetronomeIDC != "" {
-			selection := configMarkStripeIDC
-			markMetronome := configMarkMetronomeIDC != ""
-			if markMetronome {
-				selection = configMarkMetronomeIDC
-			}
-			ids, err := accountIDsForCutover(selection)
-			if err != nil {
-				log.Fatal(err)
-			}
-			current := make(map[string]bool)
-			for _, id := range *cfg.MetronomeIDCAccountIDs {
-				current[id] = true
-			}
-			for _, id := range ids {
-				current[id] = markMetronome
-			}
-			updated := make([]string, 0, len(current))
-			for id, included := range current {
-				if included {
-					updated = append(updated, id)
-				}
-			}
-			sort.Strings(updated)
-			cfg.MetronomeIDCAccountIDs = &updated
+		if cfg.StripeIDCAccountIDs == nil {
+			empty := []string{}
+			cfg.StripeIDCAccountIDs = &empty
 		}
 		if err := writeQuikstrateConfig(cfg); err != nil {
 			log.Fatal(err)
@@ -139,7 +113,7 @@ func configureAWSConfig(environments, domains []string) error {
 	sort.Sort(sort.Reverse(sort.StringSlice(environments)))
 
 	if usingIDC() {
-		for _, instance := range []idcInstance{metronomeIDC, stripeIDC} {
+		for _, instance := range []idcInstance{metronomeIDC, activeStripeIDC()} {
 			if err := writeSSOSessionConfig(instance.Name, instance.StartURL, instance.Region); err != nil {
 				return err
 			}

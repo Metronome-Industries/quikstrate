@@ -30,7 +30,7 @@ var (
 			DefaultRole:    "Administrator",
 		},
 	}
-	Domains  = []string{"api", "auth", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "network-staging", "notifications", "static-sites", "internal-services"}
+	Domains  = []string{"api", "auth", "awsmigration1", "awsmigration2", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "network-staging", "network-test", "notifications", "static-sites", "internal-services"}
 	Clusters = []ClusterSpec{
 		{
 			Name:   "graphql",
@@ -74,7 +74,6 @@ type RoleData struct {
 }
 
 func (r RoleData) GetFilename() string {
-	suffix := ".json"
 	if usingIDC() {
 		accountID := staticSpecialAccounts["substrate"]
 		if r.SpecialAccount != "" {
@@ -82,19 +81,25 @@ func (r RoleData) GetFilename() string {
 		} else if r != (RoleData{}) {
 			accountID, _ = lookupServiceAccountID(r.Domain, r.Environment)
 		}
-		suffix = fmt.Sprintf("-%s-idc.json", preferredIDCInstanceName(accountID))
+		return r.getIDCInstanceFilename(preferredIDCInstanceName(accountID))
 	}
+	suffix := ".json"
 	if r.SpecialAccount != "" {
-		role := r.Role
-		if usingIDC() {
-			role, _ = normalizeIDCRole(r.Role)
-		}
+		return filepath.Join(CredsDir, fmt.Sprintf("special-%s-%s%s", r.SpecialAccount, r.Role, suffix))
+	}
+	return filepath.Join(CredsDir, strings.ToLower(fmt.Sprintf("%s-%s-%s-%s%s", r.Environment, r.Domain, r.Quality, r.Role, suffix)))
+}
+
+func (r RoleData) getIDCInstanceFilename(instanceName string) string {
+	if r == (RoleData{}) {
+		return filepath.Join(CredsDir, fmt.Sprintf("credentials-%s-idc.json", instanceName))
+	}
+	suffix := fmt.Sprintf("-%s-idc.json", instanceName)
+	if r.SpecialAccount != "" {
+		role, _ := normalizeIDCRole(r.Role)
 		return filepath.Join(CredsDir, fmt.Sprintf("special-%s-%s%s", r.SpecialAccount, role, suffix))
 	}
-	role := r.Role
-	if usingIDC() {
-		role, _ = normalizeIDCRole(r.Role)
-	}
+	role, _ := normalizeIDCRole(r.Role)
 	return filepath.Join(CredsDir, strings.ToLower(fmt.Sprintf("%s-%s-%s-%s%s", r.Environment, r.Domain, r.Quality, role, suffix)))
 }
 

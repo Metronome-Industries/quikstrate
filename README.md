@@ -34,8 +34,9 @@ To see what version of quikstrate you are running, run: `brew info quikstrate`
 ## Credential sources: Substrate vs Identity Center
 
 By default, `quikstrate` fetches credentials through IAM Identity Center (IDC). During the AWS
-organization migration it uses Stripe IDC by default and keeps a local exception list for accounts
-that remain on Metronome IDC. Configure both SSO sessions and seed that list with:
+organization migration it uses Stripe IDC by default and keeps a local list of accounts that remain
+on Metronome IDC. The config also records accounts explicitly moved to Stripe; accounts
+in neither list default to Stripe. Configure both SSO sessions and seed the routing lists with:
 
 ```bash
 quikstrate configure
@@ -45,13 +46,16 @@ When an account migrates, remove it from the local Metronome exception list with
 binary again. `staging`, `prod`, `admin`, and individual account IDs are accepted:
 
 ```bash
-quikstrate configure --mark-stripe-idc staging
-quikstrate configure --mark-stripe-idc 407752757973
+quikstrate idc stripe staging
+quikstrate idc stripe 407752757973
 ```
 
-Use `quikstrate configure --mark-metronome-idc <selection>` to reverse a migration rehearsal.
+Use `quikstrate idc metronome <selection>` to reverse a migration rehearsal.
 Substrate remains an explicit temporary fallback: `quikstrate configure --use-substrate` persists
 it, while `USE_SUBSTRATE=true quikstrate credentials` changes a single command.
+
+During a Stripe IDC regional outage, set `SC_USE_ALTERNATE_REGION=true` to use Stripe's replicated
+`us-east-2` instance. This switch does not affect Metronome IDC.
 
 See [IDENTITY_CENTER.md](IDENTITY_CENTER.md) for prerequisites, credential behavior, rollback, and
 troubleshooting.

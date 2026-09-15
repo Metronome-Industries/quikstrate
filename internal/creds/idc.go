@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,10 +30,11 @@ type idcInstance struct {
 }
 
 var (
-	metronomeIDC     = idcInstance{Name: "metronome", StartURL: "https://d-9267463e84.awsapps.com/start", Region: "us-west-2"}
-	stripeIDC        = idcInstance{Name: "stripe", StartURL: "https://d-9267fda1d4.awsapps.com/start", Region: "us-west-2"}
-	awsCommand       = exec.Command
-	awsVersionOutput = func() (string, error) {
+	metronomeIDC       = idcInstance{Name: "metronome", StartURL: "https://d-9267463e84.awsapps.com/start", Region: "us-west-2"}
+	stripeIDC          = idcInstance{Name: "stripe", StartURL: "https://d-9267fda1d4.awsapps.com/start", Region: "us-west-2"}
+	stripeAlternateIDC = idcInstance{Name: "stripe-us-east-2", StartURL: "https://ssoins-7907aa69624c0735.portal.us-east-2.app.aws", Region: "us-east-2"}
+	awsCommand         = exec.Command
+	awsVersionOutput   = func() (string, error) {
 		output, err := awsCommand("aws", "--version").CombinedOutput()
 		return string(output), err
 	}
@@ -40,6 +42,25 @@ var (
 		return getSSORoleCredentials(instance.Name, instance.StartURL, instance.Region, accountID, roleName)
 	}
 )
+
+func alternateRegionEnabled() bool {
+	value := os.Getenv("SC_USE_ALTERNATE_REGION")
+	if value == "" {
+		return false
+	}
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		panic("SC_USE_ALTERNATE_REGION must be true, false, or unset")
+	}
+	return enabled
+}
+
+func activeStripeIDC() idcInstance {
+	if alternateRegionEnabled() {
+		return stripeAlternateIDC
+	}
+	return stripeIDC
+}
 
 const awsCLIVersionHelp = "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
 
@@ -92,6 +113,9 @@ func writeSSOSessionConfig(sessionName, startURL, region string) error {
 	if configDryrun {
 		log.Printf("would write to %s:\n%s", awsConfigFile, block)
 		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(awsConfigFile), 0700); err != nil {
+		return fmt.Errorf("creating AWS config directory: %w", err)
 	}
 
 	existing, err := os.ReadFile(awsConfigFile)

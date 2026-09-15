@@ -240,6 +240,38 @@ else
   skip "IDC: configure idempotency check (pass --run-configure)"
 fi
 
+section "IDC: routing lists"
+
+assert_ok "IDC: route staging API to Stripe" \
+  "$BIN" idc stripe 407752757973
+python3 -c "
+import json, sys
+cfg = json.load(open('$HOME/.quikstrate/config.json'))
+sys.exit(0 if '407752757973' in cfg['stripe_idc_account_ids'] and '407752757973' not in cfg['metronome_idc_account_ids'] else 1)
+" \
+  && pass "IDC: Stripe route moves account between lists" \
+  || fail "IDC: Stripe route did not move account between lists"
+
+assert_ok "IDC: repeated Stripe route is idempotent" \
+  "$BIN" idc stripe 407752757973
+python3 -c "
+import json, sys
+cfg = json.load(open('$HOME/.quikstrate/config.json'))
+sys.exit(0 if cfg['stripe_idc_account_ids'].count('407752757973') == 1 else 1)
+" \
+  && pass "IDC: repeated Stripe route does not duplicate account" \
+  || fail "IDC: repeated Stripe route duplicated account"
+
+assert_ok "IDC: route staging API back to Metronome" \
+  "$BIN" idc metronome 407752757973
+python3 -c "
+import json, sys
+cfg = json.load(open('$HOME/.quikstrate/config.json'))
+sys.exit(0 if '407752757973' in cfg['metronome_idc_account_ids'] and '407752757973' not in cfg['stripe_idc_account_ids'] else 1)
+" \
+  && pass "IDC: Metronome route moves account between lists" \
+  || fail "IDC: Metronome route did not move account between lists"
+
 # ── Section 3: IDC credentials ───────────────────────────────────────────────
 
 section "IDC: cache isolation"
