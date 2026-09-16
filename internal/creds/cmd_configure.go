@@ -66,18 +66,23 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 		os.Remove(quikstrateConfigFile)
 	}
 
-	if !configDryrun {
-		if configUseIdentityCenter {
-			if err := writeQuikstrateConfig(quikstrateConfig{CredentialSource: "identitycenter"}); err != nil {
-				log.Fatal(err)
-			}
-		} else if configUseSubstrate {
-			if err := writeQuikstrateConfig(quikstrateConfig{CredentialSource: "substrate"}); err != nil {
-				log.Fatal(err)
-			}
+	if !configDryrun && !configUseSubstrate && (configUseIdentityCenter || usingIDC()) {
+		if err := checkAWSCLIVersion(); err != nil {
+			log.Fatal(err)
 		}
 	}
 
+	if !configDryrun {
+		cfg := readQuikstrateConfig()
+		if configUseIdentityCenter {
+			cfg.CredentialSource = string(credentialSourceIDC)
+		} else if configUseSubstrate {
+			cfg.CredentialSource = string(credentialSourceSubstrate)
+		}
+		if err := writeQuikstrateConfig(cfg); err != nil {
+			log.Fatal(err)
+		}
+	}
 	err = configureAWSConfig(environments, domains)
 	if err != nil {
 		log.Fatal(err)
@@ -99,9 +104,11 @@ func configureAWSConfig(environments, domains []string) error {
 	// reverse order so staging is before prod
 	sort.Sort(sort.Reverse(sort.StringSlice(environments)))
 
-	if configUseIdentityCenter || useIDC() {
-		if err := writeSSOSessionConfig(metronomeIDCSessionName, metronomeIDCStartURL, metronomeIDCRegion); err != nil {
-			return err
+	if usingIDC() {
+		for _, instance := range []idcInstance{metronomeIDC, activeStripeIDC()} {
+			if err := writeSSOSessionConfig(instance.Name, instance.StartURL, instance.Region); err != nil {
+				return err
+			}
 		}
 	}
 
