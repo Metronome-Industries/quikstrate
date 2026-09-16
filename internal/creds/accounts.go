@@ -1,9 +1,6 @@
 package creds
 
-import (
-	"fmt"
-	"sort"
-)
+import "fmt"
 
 // Hardcode [domain, environment] to AWS account IDs to remove dependency on Substrate
 var staticServiceAccounts = map[[2]string]string{
@@ -58,42 +55,4 @@ func lookupSpecialAccountID(name string) (string, error) {
 		return id, nil
 	}
 	return "", fmt.Errorf("unknown special account %q. Update accounts.go with account id.", name)
-}
-
-func allAccountIDs() []string {
-	ids := make(map[string]struct{})
-	for _, id := range staticServiceAccounts {
-		ids[id] = struct{}{}
-	}
-	for _, id := range staticSpecialAccounts {
-		ids[id] = struct{}{}
-	}
-	result := make([]string, 0, len(ids))
-	for id := range ids {
-		result = append(result, id)
-	}
-	sort.Strings(result)
-	return result
-}
-
-func accountIDsForCutover(selection string) ([]string, error) {
-	if selection == "staging" || selection == "prod" {
-		ids := []string{}
-		for key, id := range staticServiceAccounts {
-			if key[1] == selection {
-				ids = append(ids, id)
-			}
-		}
-		sort.Strings(ids)
-		return ids, nil
-	}
-	if selection == "admin" {
-		return []string{staticSpecialAccounts["management"], staticSpecialAccounts["audit"], staticSpecialAccounts["deploy"], staticSpecialAccounts["network"], staticSpecialAccounts["substrate"]}, nil
-	}
-	for _, id := range allAccountIDs() {
-		if selection == id {
-			return []string{id}, nil
-		}
-	}
-	return nil, fmt.Errorf("unknown IDC cutover selection %q; use staging, prod, admin, or an account ID", selection)
 }

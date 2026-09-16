@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -32,32 +31,29 @@ func TestCredentialSourcePrecedence(t *testing.T) {
 	}
 }
 
-func TestIDCDefaultAndEmptyExceptionList(t *testing.T) {
-	empty := []string{}
-	withConfigFile(t, quikstrateConfig{MetronomeIDCAccountIDs: &empty, StripeIDCAccountIDs: &empty})
+func TestIDCDefault(t *testing.T) {
+	withConfigFile(t, quikstrateConfig{})
 	if got := resolveCredentialSource(); got != credentialSourceIDC {
 		t.Fatalf("default got %s", got)
 	}
-	if got := metronomeIDCAccountIDs(); len(got) != 0 {
-		t.Fatalf("empty exception list was reseeded: %v", got)
+}
+
+func TestConfigureIDCPreference(t *testing.T) {
+	withConfigFile(t, quikstrateConfig{})
+	for _, instance := range []string{"stripe", "metronome"} {
+		if err := ConfigureIDCPreference(instance); err != nil {
+			t.Fatalf("%s: %v", instance, err)
+		}
+		if readQuikstrateConfig().PreferredIDCInstance != instance {
+			t.Fatalf("%s did not persist preference", instance)
+		}
 	}
-	if got := stripeIDCAccountIDs(); len(got) != 0 {
-		t.Fatalf("unexpected explicit Stripe accounts: %v", got)
+	if err := ConfigureIDCPreference("invalid"); err == nil {
+		t.Fatal("expected invalid IDC setting to fail")
 	}
 }
 
-func TestCutoverSelections(t *testing.T) {
-	staging, err := accountIDsForCutover("staging")
-	if err != nil || len(staging) == 0 {
-		t.Fatalf("staging: %v, %v", staging, err)
-	}
-	admin, err := accountIDsForCutover("admin")
-	if err != nil || !reflect.DeepEqual(admin, []string{"420073272039", "465454680116", "703712742941", "814412579886", "666642175330"}) {
-		t.Fatalf("admin: %v, %v", admin, err)
-	}
-	if _, err := accountIDsForCutover("nope"); err == nil {
-		t.Fatal("expected invalid cutover selection to fail")
-	}
+func TestNewAccounts(t *testing.T) {
 	for account, want := range map[[2]string]string{
 		{"awsmigration1", "staging"}: "850122837972",
 		{"awsmigration2", "staging"}: "719535286314",
@@ -69,64 +65,28 @@ func TestCutoverSelections(t *testing.T) {
 	}
 }
 
-func TestRouteIDC(t *testing.T) {
-	ids := []string{"407752757973"}
-	withConfigFile(t, quikstrateConfig{MetronomeIDCAccountIDs: &ids})
-
-	if err := RouteIDC("stripe", "407752757973"); err != nil {
-		t.Fatal(err)
-	}
-	if got := metronomeIDCAccountIDs(); len(got) != 0 {
-		t.Fatalf("Stripe route did not remove account: %v", got)
-	}
-	if got := stripeIDCAccountIDs(); !reflect.DeepEqual(got, ids) {
-		t.Fatalf("Stripe route did not add account: %v", got)
-	}
-
-	if err := RouteIDC("metronome", "407752757973"); err != nil {
-		t.Fatal(err)
-	}
-	if got := metronomeIDCAccountIDs(); !reflect.DeepEqual(got, ids) {
-		t.Fatalf("Metronome route did not add account: %v", got)
-	}
-	if got := stripeIDCAccountIDs(); len(got) != 0 {
-		t.Fatalf("Metronome route did not remove Stripe account: %v", got)
-	}
-
-	if err := RouteIDC("other", "staging"); err == nil {
-		t.Fatal("expected invalid IDC instance to fail")
-	}
-}
-
-func TestConfigRejectsAccountInBothIDCLists(t *testing.T) {
-	ids := []string{"407752757973"}
-	old := quikstrateConfigFile
-	quikstrateConfigFile = t.TempDir() + "/config.json"
-	t.Cleanup(func() { quikstrateConfigFile = old })
-	if err := writeQuikstrateConfig(quikstrateConfig{
-		MetronomeIDCAccountIDs: &ids,
-		StripeIDCAccountIDs:    &ids,
-	}); err == nil {
-		t.Fatal("expected overlapping IDC routing lists to fail")
-	}
-}
-
 func TestPreferredIDCInstances(t *testing.T) {
-	ids := []string{"407752757973"}
-	withConfigFile(t, quikstrateConfig{MetronomeIDCAccountIDs: &ids})
+	withConfigFile(t, quikstrateConfig{})
 	first, second := preferredIDCInstances("407752757973")
 	if first.Name != "metronome" || second.Name != "stripe" {
 		t.Fatalf("unexpected order: %s, %s", first.Name, second.Name)
 	}
-	first, second = preferredIDCInstances("477056945755")
+	if err := ConfigureIDCPreference("stripe"); err != nil {
+		t.Fatal(err)
+	}
+	first, second = preferredIDCInstances("407752757973")
 	if first.Name != "stripe" || second.Name != "metronome" {
 		t.Fatalf("unexpected order: %s, %s", first.Name, second.Name)
+	}
+	t.Setenv("QUIKSTRATE_IDC_INSTANCE", "metronome")
+	first, _ = preferredIDCInstances("407752757973")
+	if first.Name != "metronome" {
+		t.Fatalf("environment override got %s", first.Name)
 	}
 }
 
 func TestStripeAlternateRegion(t *testing.T) {
-	empty := []string{}
-	withConfigFile(t, quikstrateConfig{MetronomeIDCAccountIDs: &empty})
+	withConfigFile(t, quikstrateConfig{PreferredIDCInstance: "stripe"})
 	t.Setenv("SC_USE_ALTERNATE_REGION", "true")
 
 	first, second := preferredIDCInstances("407752757973")
@@ -140,8 +100,7 @@ func TestStripeAlternateRegion(t *testing.T) {
 }
 
 func TestStripeAlternateRegionDoesNotChangeMetronome(t *testing.T) {
-	ids := []string{"407752757973"}
-	withConfigFile(t, quikstrateConfig{MetronomeIDCAccountIDs: &ids})
+	withConfigFile(t, quikstrateConfig{})
 	t.Setenv("SC_USE_ALTERNATE_REGION", "true")
 
 	first, second := preferredIDCInstances("407752757973")
@@ -161,8 +120,7 @@ func TestStripeAlternateRegionRejectsInvalidValue(t *testing.T) {
 }
 
 func TestIDCFallbackAndCombinedError(t *testing.T) {
-	empty := []string{}
-	withConfigFile(t, quikstrateConfig{MetronomeIDCAccountIDs: &empty})
+	withConfigFile(t, quikstrateConfig{PreferredIDCInstance: "stripe"})
 	old := getIDCCredentialsForInstance
 	t.Cleanup(func() { getIDCCredentialsForInstance = old })
 	getIDCCredentialsForInstance = func(instance idcInstance, _, _ string) (Credentials, error) {
@@ -185,8 +143,7 @@ func TestIDCFallbackAndCombinedError(t *testing.T) {
 }
 
 func TestFallbackCacheUsesSuccessfulInstanceName(t *testing.T) {
-	empty := []string{}
-	withConfigFile(t, quikstrateConfig{MetronomeIDCAccountIDs: &empty})
+	withConfigFile(t, quikstrateConfig{PreferredIDCInstance: "stripe"})
 	oldGet := getIDCCredentialsForInstance
 	oldCredsDir := CredsDir
 	t.Cleanup(func() {
@@ -216,8 +173,7 @@ func TestFallbackCacheUsesSuccessfulInstanceName(t *testing.T) {
 }
 
 func TestIDCRolesAndCacheNames(t *testing.T) {
-	empty := []string{}
-	withConfigFile(t, quikstrateConfig{MetronomeIDCAccountIDs: &empty})
+	withConfigFile(t, quikstrateConfig{PreferredIDCInstance: "stripe"})
 	if role, err := normalizeIDCRole("Administrator"); err != nil || role != "admin" {
 		t.Fatalf("administrator: %q, %v", role, err)
 	}

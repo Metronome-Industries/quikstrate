@@ -79,14 +79,6 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 		} else if configUseSubstrate {
 			cfg.CredentialSource = string(credentialSourceSubstrate)
 		}
-		if cfg.MetronomeIDCAccountIDs == nil {
-			ids := allAccountIDs()
-			cfg.MetronomeIDCAccountIDs = &ids
-		}
-		if cfg.StripeIDCAccountIDs == nil {
-			empty := []string{}
-			cfg.StripeIDCAccountIDs = &empty
-		}
 		if err := writeQuikstrateConfig(cfg); err != nil {
 			log.Fatal(err)
 		}

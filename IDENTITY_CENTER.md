@@ -1,21 +1,10 @@
 # IAM Identity Center
 
-`quikstrate` now uses IAM Identity Center (IDC) by default. During the AWS organization migration
-it supports both the temporary Metronome instance and Stripe's instance. Stripe IDC is attempted
-first except for account IDs in the local `metronome_idc_account_ids` list. The
-`stripe_idc_account_ids` list records explicit cutovers; an account in neither list defaults to
-Stripe. If the preferred instance is unavailable or lacks an assignment, quikstrate attempts the
-other IDC instance. It never silently falls back to Substrate.
+Starting in v1.0.36, `quikstrate` fetches credentials via AWS IAM Identity Center (IDC) by default.
 
-## Prerequisites
+All commands, AWS profiles, and Kubernetes contexts are expected to continue to work; quikstrate resolves the required IDC account and permission set behind the scenes.
 
-- The [access-metronome-aws-admin](https://go/ldapg/access-metronome-aws-admin) LMS permission
-- AWS CLI v2.9.0 or later
-
-## Update Quikstrate
-
-Identity Center support requires Quikstrate v1.0.33 or later. Update the Homebrew tap and upgrade
-Quikstrate before opting in:
+## Install or update Quikstrate
 
 ```bash
 brew update
@@ -23,8 +12,7 @@ brew upgrade quikstrate
 brew info quikstrate
 ```
 
-`brew info quikstrate` displays the installed version. If Homebrew reports that Quikstrate is not
-installed, run:
+If Quikstrate is not installed:
 
 ```bash
 brew tap metronome-industries/metronome
@@ -33,47 +21,35 @@ brew install quikstrate
 
 ## Setup
 
-A browser window opens on the first credential request that requires an SSO login.
+AWS CLI v2.9.0 or newer is required. Run:
 
 ```bash
 quikstrate configure
 ```
 
-This:
+This configures the Metronome and primary Stripe SSO sessions, AWS profiles, and Kubernetes contexts
+used by quikstrate. The first credential request for an IDC session may open a browser for
+`aws sso login`. AWS CLI stores each session's SSO token in `~/.aws/sso/cache/` and reuses it until
+it expires.
 
-- Writes both `[sso-session metronome]` and `[sso-session stripe]` blocks to `~/.aws/config`.
-- On the first run, seeds `metronome_idc_account_ids` in `~/.quikstrate/config.json` with every
-  known Metronome account and initializes `stripe_idc_account_ids` as empty.
-- Re-runs the normal `configure` flow, so existing `aws` and `kubectl` commands continue to use
-  the same profiles and contexts. The configured credential processes resolve through Identity
-  Center under the hood.
+## Credential behavior
 
-The first credential request after setup opens a browser for `aws sso login`. This may be triggered
-by `quikstrate credentials` or by an `aws` or `kubectl` command that invokes Quikstrate. The AWS CLI
-caches SSO tokens in `~/.aws/sso/cache/` and reuses them until they expire, so browser login is not
-required for every command.
+- Continue to use `quikstrate assume`, `quikstrate credentials`, `aws --profile ...`, and existing Kubernetes contexts.
+- `Administrator` maps to IDC's `admin` permission set.
+- Read-only IDC callers must use `--role engineersreadonly`; `Auditor` is a Substrate role name.
+- Credential cache filenames identify the IDC endpoint that issued them: `*-metronome-idc.json`,
+  `*-stripe-idc.json`, or `*-stripe-us-east-2-idc.json`.
+- If no configured IDC instance can provide a requested permission set, the error identifies each instance attempted. Quikstrate does not fall back to Substrate automatically.
 
-## Move accounts between IDC instances
+## Supported IDC instances
 
-After an account is migrated and access is provisioned through Stripe's migration process, move it
-from the Metronome list to the Stripe list. These commands are idempotent and preserve unrelated
-AWS configuration:
+During the migration of Metronome AWS accounts into the Stripe AWS Organization, `quikstrate` supports Identity Center in both AWS organizations plus Stripe's alternate region.
 
-```bash
-quikstrate idc stripe staging
-quikstrate idc stripe prod
-quikstrate idc stripe admin
-quikstrate idc stripe 407752757973
-```
-
-To undo a rehearsal or temporarily restore Metronome-first routing, use the inverse command:
-
-```bash
-quikstrate idc metronome staging
-```
-
-`QUIKSTRATE_IDC_INSTANCE=metronome|stripe` forces the preferred instance for one command and is
-intended for migration diagnosis.
+| Session | Region | Start URL | Purpose |
+| --- | --- | --- | --- |
+| `metronome` | `us-west-2` | `https://d-9267463e84.awsapps.com/start` | Accounts still in the Metronome AWS organization |
+| `stripe` | `us-west-2` | `https://d-9267fda1d4.awsapps.com/start` | Primary endpoint for accounts in the Stripe AWS organization |
+| `stripe-us-east-2` | `us-east-2` | `https://ssoins-7907aa69624c0735.portal.us-east-2.app.aws` | Stripe's replicated endpoint for a regional outage |
 
 ## Stripe regional failover
 
@@ -85,142 +61,90 @@ and enable the common CLI failover switch:
 export SC_USE_ALTERNATE_REGION=true
 ```
 
-Stripe IDC requests then use the replicated `us-east-2` instance at
-`https://ssoins-7907aa69624c0735.portal.us-east-2.app.aws`. Its SSO token and role credentials use
-the distinct `stripe-us-east-2` session/cache name. Metronome IDC remains in `us-west-2` and has no
-regional failover. Unset the variable after the incident:
+Stripe IDC requests then use the replicated `stripe-us-east-2` endpoint instead of the primary
+`stripe` endpoint. Metronome IDC requests remain in `us-west-2`. The alternate SSO token and role
+credentials use a distinct session/cache name. Unset the variable after the incident:
 
 ```bash
 unset SC_USE_ALTERNATE_REGION
 ```
 
-## Explicit Substrate fallback
+## Troubleshooting
 
-To use Substrate for all future commands:
+### Force a browser login
+
+Quikstrate automatically opens a browser when an SSO token is missing or expired. To log in manually, choose the session you need:
 
 ```bash
-quikstrate configure --use-substrate
+aws sso login --sso-session metronome
+aws sso login --sso-session stripe
 ```
 
-This changes `~/.quikstrate/config.json` to `credential_source: substrate`. The IDC session blocks
-remain harmlessly in `~/.aws/config`. Substrate cannot access accounts after they migrate, so it is
-not a workaround for a missing Stripe assignment.
+### Requested permission set is unavailable
 
-For a single command without changing the persisted configuration:
+Verify that you have the required LMS permission and that it has propagated to IDC. A cached SSO
+token may need to be refreshed after new access is granted.
+
+### AWS CLI version errors
+
+Upgrade to AWS CLI v2.9.0 or newer using the link included in quikstrate's error message.
+
+## Temporary: Metronome-to-Stripe AWS migration
+
+> Remove this section after all Metronome AWS accounts have migrated and the temporary Metronome
+> IDC and Substrate compatibility paths are removed.
+
+During the migration, quikstrate supports both the temporary Metronome IDC instance and Stripe IDC. The required current LMS permission is [access-metronome-aws-admin](https://go/ldapg/access-metronome-aws-admin).
+
+### Migration preference
+
+Before migration, a missing `preferred_idc_instance` setting defaults to Metronome IDC. `quikstrate configure` preserves an existing preference but does not write one automatically.
+
+On migration day, switch the global preference once:
+
+```bash
+quikstrate idc stripe
+```
+
+To reverse a rehearsal or restore Metronome-first routing:
+
+```bash
+quikstrate idc metronome
+```
+
+These commands update only `preferred_idc_instance` in `~/.quikstrate/config.json`; they do not reconfigure AWS or Kubernetes or change the credential source. Quikstrate tries the preferred organization first, then reports and tries the other organization if the account or permission set is unavailable. It never falls back to Substrate automatically.
+
+For diagnosis, `QUIKSTRATE_IDC_INSTANCE=metronome|stripe` overrides the saved preference for one command.
+
+### Explicit Substrate fallback
+
+Substrate remains available only as an explicit temporary fallback for accounts that have not
+migrated. For one command:
 
 ```bash
 USE_SUBSTRATE=true quikstrate credentials
 ```
 
-`USE_SUBSTRATE=true` takes precedence over `config.json`.
+To persist the selection:
 
-To remove and rebuild local configuration, add `--clean`. This deletes and rebuilds the entire
-`~/.aws/config` and `~/.kube/config`, not only the Identity Center block:
+```bash
+quikstrate configure --use-substrate
+```
+
+To delete and rebuild quikstrate, AWS, and Kubernetes configuration in Substrate mode:
 
 ```bash
 quikstrate configure --use-substrate --clean
 ```
 
-## Roll back Quikstrate to v1.0.28
+### Release rollback
 
-If the Identity Center release causes problems beyond the credential flow, v1.0.28 is the last
-known-good Quikstrate release from before the AWS account and Identity Center changes.
+If a release causes problems beyond credential routing, use the last known-good release identified
+by the migration owner rather than treating Substrate as an automatic fallback.
 
-First, unlink the Homebrew-managed binary and ensure `~/.local/bin` exists on your `PATH`:
-
-```bash
-brew unlink quikstrate
-mkdir -p ~/.local/bin
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-Then download the v1.0.28 release for your Mac's architecture:
-
-```bash
-case "$(uname -m)" in
-  arm64) artifact="quikstrate_Darwin_arm64.tar.gz" ;;
-  x86_64) artifact="quikstrate_Darwin_x86_64.tar.gz" ;;
-  *) echo "Unsupported architecture: $(uname -m)"; return 1 ;;
-esac
-
-curl -fL \
-  "https://github.com/Metronome-Industries/quikstrate/releases/download/1.0.28/$artifact" \
-  -o "/tmp/$artifact"
-tar -xzf "/tmp/$artifact" -C ~/.local/bin quikstrate
-hash -r
-```
-
-Add `export PATH="$HOME/.local/bin:$PATH"` to `~/.zshrc` if it is not already present. Confirm that
-the rollback binary takes precedence over Homebrew:
-
-```bash
-which -a quikstrate
-```
-
-To return to the current Homebrew release later, delete the rollback binary and relink Homebrew:
-
-```bash
-rm ~/.local/bin/quikstrate
-brew update
-brew upgrade quikstrate
-brew link quikstrate
-hash -r
-```
-
-## Credential behavior
-
-- **Command usage does not change.** Continue to use `quikstrate assume`, `quikstrate credentials`,
-  `aws --profile ...`, and existing Kubernetes contexts regardless of the credential source.
-- **Credential caches are instance-specific.** IDC credentials use names such as
-  `prod-api-gamma-admin-stripe-idc.json`, based on the instance that actually returned them. A
-  fallback to Metronome is therefore written to a `*-metronome-idc.json` file. Authenticate again
-  once per IDC instance after an organization move; do not rely on old generic `*-idc.json` files.
-- **Role names.** `Administrator` maps to IDC's `admin` permission set. Read-only IDC callers must
-  use `--role engineersreadonly`; `--role Auditor` returns an actionable error in IDC mode. Explicit
-  Substrate mode continues to accept `Auditor`.
-- **Missing permissions do not fall back to Substrate.** A combined error identifies both IDC
-  instances when neither can provide the requested permission set.
-
-## Troubleshooting
-
-### Force a browser login
-
-Quikstrate automatically runs `aws sso login` when the cached SSO token is missing or expired. To
-log in manually, run:
-
-```bash
-aws sso login --sso-session stripe
-```
-
-### Use Substrate as a fallback
-
-If an Identity Center workflow is blocked and the account has not migrated, prefix the command with
-`USE_SUBSTRATE=true`:
-
-```bash
-eval "$(USE_SUBSTRATE=true quikstrate assume --env staging --domain api)"
-```
-
-### Requested permission set is unavailable
-
-This means that the permission set is not provisioned for the requested AWS account. Verify the
-Stripe migration assignment and use the other IDC instance for diagnosis. Quikstrate intentionally
-does not fall back to Substrate in this case.
-
-### AWS CLI version errors
-
-IDC requires AWS CLI v2.9.0 or newer. `quikstrate configure` and interactive SSO login check this
-prerequisite and report whether `aws` is missing, unparsable, or too old. Upgrade using the link in
-the error; `USE_SUBSTRATE=true` is only a temporary fallback while Substrate remains usable.
-
-## Migration context
-
-The Metronome Identity Center instance is temporary. It supports validating Identity Center
-workflows before Metronome AWS accounts migrate into the Stripe AWS Organization. After that
-migration, Stripe's Identity Center will replace both the temporary instance and Substrate as the
-normal credential source.
+### Migration references
 
 - [Metronome AWS Identity Center Plan](https://docs.google.com/document/d/1dnqNDbDVzoKWjflu4RfNnWgf8EFZRNOyUlrpsbiy5P4/edit?tab=t.0)
 - [Metronome AWS Integration Plan](https://docs.google.com/document/d/19W-7RO6TT7h9zIzpwkoi3CV7CbpLUBZaOby-zLeoj2E/edit?tab=t.0)
 
-If you have issues, reach out [@rylan](https://go/~/rylan)
+For migration issues, reach out [@rylan](https://go/~/rylan).

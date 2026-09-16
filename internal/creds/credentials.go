@@ -165,18 +165,10 @@ func getIDCRoleCredentialsWithInstance(accountID, roleName, label string) (Crede
 	return Credentials{}, idcInstance{}, fmt.Errorf("getting %q credentials for %s from %s IDC: %w; %s IDC also failed: %v", roleName, label, primary.Name, err, secondary.Name, secondaryErr)
 }
 
-func preferredIDCInstances(accountID string) (idcInstance, idcInstance) {
+func preferredIDCInstances(_ string) (idcInstance, idcInstance) {
 	stripe := activeStripeIDC()
-	if override := os.Getenv("QUIKSTRATE_IDC_INSTANCE"); override == "metronome" {
+	if preferredIDCInstance() == "metronome" {
 		return metronomeIDC, stripe
-	}
-	if override := os.Getenv("QUIKSTRATE_IDC_INSTANCE"); override == "stripe" {
-		return stripe, metronomeIDC
-	}
-	for _, id := range metronomeIDCAccountIDs() {
-		if id == accountID {
-			return metronomeIDC, stripe
-		}
 	}
 	return stripe, metronomeIDC
 }

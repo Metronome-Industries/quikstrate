@@ -6,11 +6,11 @@ import (
 )
 
 var idcCmd = &cobra.Command{
-	Use:   "idc <stripe|metronome> <staging|prod|admin|account-id>",
-	Short: "Route AWS accounts to an Identity Center instance",
-	Args:  cobra.ExactArgs(2),
+	Use:   "idc <stripe|metronome>",
+	Short: "Configure the preferred Identity Center instance",
+	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return creds.RouteIDC(args[0], args[1])
+		return creds.ConfigureIDCPreference(args[0])
 	},
 }
 
