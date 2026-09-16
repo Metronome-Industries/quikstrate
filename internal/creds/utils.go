@@ -30,7 +30,7 @@ var (
 			DefaultRole:    "Administrator",
 		},
 	}
-	Domains  = []string{"api", "auth", "awsmigration1", "awsmigration2", "druid", "graphql", "ingest", "integrations", "lakehouse", "lambda", "marketplaces", "network-staging", "network-test", "notifications", "static-sites", "internal-services"}
+	Domains  = serviceAccountDomains()
 	Clusters = []ClusterSpec{
 		{
 			Name:   "graphql",

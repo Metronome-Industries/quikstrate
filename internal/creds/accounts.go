@@ -1,6 +1,9 @@
 package creds
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // Hardcode [domain, environment] to AWS account IDs to remove dependency on Substrate
 var staticServiceAccounts = map[[2]string]string{
@@ -11,7 +14,6 @@ var staticServiceAccounts = map[[2]string]string{
 	{"awsmigration1", "staging"}:   "850122837972",
 	{"awsmigration2", "staging"}:   "719535286314",
 	{"druid", "prod"}:              "035220036306",
-	{"druid-loadtest", "prod"}:     "905418052488",
 	{"graphql", "staging"}:         "008444403661",
 	{"graphql", "prod"}:            "051318803586",
 	{"ingest", "staging"}:          "464715055874",
@@ -32,6 +34,22 @@ var staticServiceAccounts = map[[2]string]string{
 	{"static-sites", "staging"}:    "414118243174",
 	{"static-sites", "prod"}:       "447219469935",
 	{"admin", "admin"}:             "666642175330",
+}
+
+func serviceAccountDomains() []string {
+	domainSet := make(map[string]struct{})
+	for account := range staticServiceAccounts {
+		if _, ok := EnvironmentMap[account[1]]; ok {
+			domainSet[account[0]] = struct{}{}
+		}
+	}
+
+	domains := make([]string, 0, len(domainSet))
+	for domain := range domainSet {
+		domains = append(domains, domain)
+	}
+	sort.Strings(domains)
+	return domains
 }
 
 // Special accounts are a concept carried over from Substrate. They are accessed via --special <name>.

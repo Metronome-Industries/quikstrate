@@ -101,7 +101,6 @@ aws_account_for_creds() {
 
 # Remove all IDC credential cache files so tests don't reuse stale credentials.
 idc_clear_creds() {
-  rm -f ~/.quikstrate/credentials-*-idc.json
   rm -f ~/.quikstrate/*-idc.json 2>/dev/null || true
 }
 

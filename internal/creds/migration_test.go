@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -62,6 +63,16 @@ func TestNewAccounts(t *testing.T) {
 		if got, err := lookupServiceAccountID(account[0], account[1]); err != nil || got != want {
 			t.Fatalf("%s/%s: got %q, %v; want %q", account[1], account[0], got, err, want)
 		}
+	}
+}
+
+func TestServiceAccountDomains(t *testing.T) {
+	want := []string{"api", "auth", "awsmigration1", "awsmigration2", "druid", "graphql", "ingest", "integrations", "internal-services", "lakehouse", "lambda", "marketplaces", "network-staging", "network-test", "notifications", "static-sites"}
+	if !slices.Equal(Domains, want) {
+		t.Fatalf("Domains = %v; want %v", Domains, want)
+	}
+	if slices.Contains(Domains, "admin") {
+		t.Fatal("Domains includes account from environment outside EnvironmentMap")
 	}
 }
 
