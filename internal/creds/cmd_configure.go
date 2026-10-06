@@ -23,6 +23,7 @@ var (
 	configClean             bool
 	configUseIdentityCenter bool
 	configUseSubstrate      bool
+	configPreserveAWSAuth   bool
 	awsRegion               string
 
 	binaryName = "quikstrate"
@@ -40,13 +41,18 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	configCheck, _ := strconv.ParseBool(cmd.Flag("check").Value.String())
 	configUseIdentityCenter, _ = cmd.Flags().GetBool("use-identitycenter")
 	configUseSubstrate, _ = cmd.Flags().GetBool("use-substrate")
+	preserveAWSAuthFlag, _ := cmd.Flags().GetBool("preserve-aws-auth")
+	var err error
+	configPreserveAWSAuth, err = preserveAWSAuthEnabled(preserveAWSAuthFlag)
+	if err != nil {
+		log.Fatal(err)
+	}
 	awsRegion = cmd.Flag("aws-region").Value.String()
 	environments := strings.Split(cmd.Flag("environments").Value.String(), ",")
 	domains := strings.Split(cmd.Flag("domains").Value.String(), ",")
 
 	// Use the running executable's path so credential_process entries in ~/.aws/config
 	// always point to the binary that ran configure (important when testing local builds).
-	var err error
 	binaryPath, err = os.Executable()
 	if err != nil {
 		binaryPath = os.Args[0]
@@ -66,7 +72,7 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 		os.Remove(quikstrateConfigFile)
 	}
 
-	if !configDryrun && !configUseSubstrate && (configUseIdentityCenter || usingIDC()) {
+	if !configDryrun && !configPreserveAWSAuth && !configUseSubstrate && (configUseIdentityCenter || usingIDC()) {
 		if err := checkAWSCLIVersion(); err != nil {
 			log.Fatal(err)
 		}
@@ -94,6 +100,21 @@ func ConfigureCmd(cmd *cobra.Command, args []string) {
 	}
 }
 
+func preserveAWSAuthEnabled(flagEnabled bool) (bool, error) {
+	if flagEnabled {
+		return true, nil
+	}
+	value := os.Getenv("QUIKSTRATE_PRESERVE_AWS_AUTH")
+	if value == "" {
+		return false, nil
+	}
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("QUIKSTRATE_PRESERVE_AWS_AUTH must be true, false, or unset")
+	}
+	return enabled, nil
+}
+
 func configureAWSConfig(environments, domains []string) error {
 	log.Print("\nConfiguring aws config")
 	if configClean {
@@ -104,7 +125,11 @@ func configureAWSConfig(environments, domains []string) error {
 	// reverse order so staging is before prod
 	sort.Sort(sort.Reverse(sort.StringSlice(environments)))
 
-	if usingIDC() {
+	if configPreserveAWSAuth {
+		if err := removeQuikstrateAWSAuth(); err != nil {
+			return err
+		}
+	} else if usingIDC() {
 		for _, instance := range []idcInstance{metronomeIDC, activeStripeIDC()} {
 			if err := writeSSOSessionConfig(instance.Name, instance.StartURL, instance.Region); err != nil {
 				return err
@@ -115,7 +140,8 @@ func configureAWSConfig(environments, domains []string) error {
 	for _, environment := range environments {
 		for _, domain := range domains {
 			profile := fmt.Sprintf("%s-%s", environment, domain)
-			setAWSProfile(profile, fmt.Sprintf("\"%s assume -e %s -d %s -f json\"", binaryPath, environment, domain), awsRegion)
+			credentialProcess := fmt.Sprintf("\"%s assume -e %s -d %s -f json\"", binaryPath, environment, domain)
+			setAWSProfile(profile, credentialProcess, awsRegion)
 		}
 	}
 
@@ -124,15 +150,55 @@ func configureAWSConfig(environments, domains []string) error {
 		setAWSProfile(domain, fmt.Sprintf("\"%s assume --special %s -f json\"", binaryPath, domain), awsRegion)
 	}
 
-	setAWSConfigValue("default", "credential_process", fmt.Sprintf("\"%s credentials -f json\"", binaryPath))
+	if !configPreserveAWSAuth {
+		setAWSConfigValue("default", "credential_process", fmt.Sprintf("\"%s credentials -f json\"", binaryPath))
+	}
 	setAWSConfigValue("default", "region", awsRegion)
 	return nil
 }
 
 func setAWSProfile(name, credentialProcess, region string) {
 	log.Printf("Configuring profile %s\n", name)
-	setAWSConfigValue(name, "credential_process", credentialProcess)
+	if !configPreserveAWSAuth {
+		setAWSConfigValue(name, "credential_process", credentialProcess)
+	}
 	setAWSConfigValue(name, "region", region)
+}
+
+// removeQuikstrateAWSAuth removes authentication installed by previous configure
+// runs while preserving unrelated AWS configuration and the named profiles that
+// devboxes use with their native credential provider chain.
+func removeQuikstrateAWSAuth() error {
+	if configDryrun {
+		log.Printf("would remove quikstrate credential_process values and SSO sessions from %s", awsConfigFile)
+		return nil
+	}
+
+	contents, err := os.ReadFile(awsConfigFile)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", awsConfigFile, err)
+	}
+
+	content := string(contents)
+	for _, sessionName := range []string{metronomeIDC.Name, stripeIDC.Name, stripeAlternateIDC.Name} {
+		content = removeSSOSession(content, sessionName)
+	}
+
+	var out strings.Builder
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		key, value, found := strings.Cut(trimmed, "=")
+		if found && strings.TrimSpace(key) == "credential_process" && strings.Contains(value, "quikstrate") {
+			continue
+		}
+		out.WriteString(line)
+		out.WriteByte('\n')
+	}
+
+	return os.WriteFile(awsConfigFile, []byte(out.String()), 0600)
 }
 
 func setAWSConfigValue(profile, key, value string) {
@@ -188,13 +254,19 @@ func getenv(key, fallback string) string {
 }
 
 func checkConfig(environments, domains []string) error {
-	// simple ~/.aws/config check, greps for quikstrate string
-	out, err := script.IfExists(awsConfigFile).Exec("cat " + awsConfigFile).Match(binaryName).String()
+	// Check the profile structure rather than the authentication mechanism. This
+	// allows Stripe devboxes to retain their native AWS credential provider.
+	contents, err := os.ReadFile(awsConfigFile)
 	if err != nil {
 		return fmt.Errorf("%s doesn't exist", awsConfigFile)
 	}
-	if strings.TrimSpace(out) == "" {
-		return fmt.Errorf("%s doesn't call %s", awsConfigFile, binaryName)
+	for _, environment := range environments {
+		for _, domain := range domains {
+			profile := fmt.Sprintf("[profile %s-%s]", environment, domain)
+			if !strings.Contains(string(contents), profile) {
+				return fmt.Errorf("%s doesn't contain profile %s-%s", awsConfigFile, environment, domain)
+			}
+		}
 	}
 
 	// simple ~/.kube/config check, validates contexts and users exist
