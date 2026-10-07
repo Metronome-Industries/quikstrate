@@ -54,9 +54,12 @@ credential provider chain.
 - Continue to use `quikstrate assume`, `quikstrate credentials`, `aws --profile ...`, and existing Kubernetes contexts.
 - `Administrator` maps to IDC's `admin` permission set.
 - Read-only IDC callers must use `--role engineersreadonly`; `Auditor` is a Substrate role name.
+- For a custom `--role`, Quikstrate first looks for a matching IDC permission set. If neither IDC
+  instance provides one, it uses the base admin credentials to assume an IAM role of that name in
+  the target service account.
 - Credential cache filenames identify the IDC endpoint that issued them: `*-metronome-idc.json`,
   `*-stripe-idc.json`, or `*-stripe-us-east-2-idc.json`.
-- If no configured IDC instance can provide a requested permission set, the error identifies each instance attempted. Quikstrate does not fall back to Substrate automatically.
+- Quikstrate does not fall back to Substrate automatically.
 
 ## Supported IDC instances
 
