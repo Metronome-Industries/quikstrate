@@ -104,14 +104,20 @@ func readSSOToken(sessionName string) (ssoToken, error) {
 	return t, json.Unmarshal(data, &t)
 }
 
-// writeSSOSessionConfig writes a [sso-session metronome] block to ~/.aws/config directly,
-// `aws configure set` mishandles the sso-session.* namespace
+// writeSSOSessionConfig writes a managed SSO session to ~/.aws/config directly;
+// `aws configure set` mishandles the sso-session.* namespace.
 func writeSSOSessionConfig(sessionName, startURL, region string) error {
-	block := fmt.Sprintf("[sso-session %s]\nsso_start_url = %s\nsso_region = %s\nsso_registration_scopes = sso:account:access\n\n",
-		sessionName, startURL, region)
+	managed := awsManagedSection{
+		header: fmt.Sprintf("[sso-session %s]", sessionName),
+		values: [][2]string{
+			{"sso_start_url", startURL},
+			{"sso_region", region},
+			{"sso_registration_scopes", "sso:account:access"},
+		},
+	}
 
 	if configDryrun {
-		log.Printf("would write to %s:\n%s", awsConfigFile, block)
+		log.Printf("would update managed SSO session %s in %s", sessionName, awsConfigFile)
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(awsConfigFile), 0700); err != nil {
@@ -120,36 +126,12 @@ func writeSSOSessionConfig(sessionName, startURL, region string) error {
 
 	existing, err := os.ReadFile(awsConfigFile)
 	if os.IsNotExist(err) {
-		return os.WriteFile(awsConfigFile, []byte(block), 0600)
-	}
-	if err != nil {
+		existing = nil
+	} else if err != nil {
 		return fmt.Errorf("reading %s: %w", awsConfigFile, err)
 	}
-
-	content := removeSSOSession(string(existing), sessionName) + block
+	content := updateManagedAWSConfig(string(existing), []awsManagedSection{managed}, false)
 	return os.WriteFile(awsConfigFile, []byte(content), 0600)
-}
-
-// removeSSOSession strips the [sso-session metronome] block so writeSSOSessionConfig
-// can append a fresh one.
-func removeSSOSession(content, sessionName string) string {
-	header := "[sso-session " + sessionName + "]"
-	var out strings.Builder
-	skip := false
-	for _, line := range strings.Split(content, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == header {
-			skip = true
-			continue
-		}
-		if skip && strings.HasPrefix(trimmed, "[") {
-			skip = false
-		}
-		if !skip {
-			out.WriteString(line + "\n")
-		}
-	}
-	return out.String()
 }
 
 // getSSOToken returns a valid token for the given session, triggering an

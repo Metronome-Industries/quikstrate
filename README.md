@@ -39,6 +39,11 @@ By default, `quikstrate` fetches short-lived AWS credentials through IAM Identit
 quikstrate configure
 ```
 
+`configure` only replaces the AWS config values that quikstrate owns. Managed
+values are delimited by `BEGIN/END QUIKSTRATE MANAGED VALUES` comments; unrelated
+profiles, values, and comments in `~/.aws/config` are preserved, including when
+`--clean` is used.
+
 See [IDENTITY_CENTER.md](IDENTITY_CENTER.md) for detailed setup, credential behavior, and troubleshooting during the migration from Substrate to Identity Center.
 
 ## Releasing
