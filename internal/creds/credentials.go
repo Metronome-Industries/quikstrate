@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"time"
 
@@ -113,9 +112,10 @@ func getAndWriteCredentials(role RoleData, file string) (Credentials, error) {
 	if err != nil {
 		return Credentials{}, err
 	}
-	log.Printf("writing credentials to %s (expiring in %s)\n", file, creds.Expiration.Sub(time.Now()).Round(time.Minute).String())
-	creds.Write(file)
-	return creds, err
+	if err := creds.Write(file); err != nil {
+		return Credentials{}, fmt.Errorf("writing credentials to %s: %w", file, err)
+	}
+	return creds, nil
 }
 
 func getIDCCredentialsWithInstance(role RoleData) (Credentials, idcInstance, error) {
@@ -143,7 +143,27 @@ func getIDCCredentialsWithInstance(role RoleData) (Credentials, idcInstance, err
 	if err != nil {
 		return Credentials{}, idcInstance{}, err
 	}
-	return getIDCRoleCredentialsWithInstance(accountID, roleName, fmt.Sprintf("%s-%s", role.Environment, role.Domain))
+	label := fmt.Sprintf("%s-%s", role.Environment, role.Domain)
+	creds, instance, err := getIDCRoleCredentialsWithInstance(accountID, roleName, label)
+	if err == nil || !errors.Is(err, errPermissionSetUnavailableEverywhere) || roleName == idcRoleAdmin || roleName == idcRoleReadOnly {
+		return creds, instance, err
+	}
+
+	// Custom --role values historically named IAM roles, while IDC's
+	// GetRoleCredentials API expects permission-set names. If neither IDC
+	// instance has that permission set, preserve the old CLI behavior by using
+	// the base admin credentials to assume the requested IAM role with STS.
+	baseCreds, baseInstance, baseErr := getIDCRoleCredentialsWithInstance(
+		staticSpecialAccounts["substrate"], idcRoleAdmin, "admin",
+	)
+	if baseErr != nil {
+		return Credentials{}, idcInstance{}, fmt.Errorf("getting base credentials to assume IAM role %q: %w", roleName, baseErr)
+	}
+	assumedCreds, assumeErr := assumeIAMRoleCredentials(baseCreds, accountID, roleName)
+	if assumeErr != nil {
+		return Credentials{}, idcInstance{}, fmt.Errorf("assuming IAM role %q in account %s: %w", roleName, accountID, assumeErr)
+	}
+	return assumedCreds, baseInstance, nil
 }
 
 func getIDCRoleCredentials(accountID, roleName, label string) (Credentials, error) {
@@ -157,12 +177,14 @@ func getIDCRoleCredentialsWithInstance(accountID, roleName, label string) (Crede
 	if err == nil {
 		return creds, primary, nil
 	}
-	log.Printf("%s IDC could not provide %q credentials for %s; trying %s IDC\n", primary.Name, roleName, label, secondary.Name)
 	secondaryCreds, secondaryErr := getIDCCredentialsForInstance(secondary, accountID, roleName)
 	if secondaryErr == nil {
 		return secondaryCreds, secondary, nil
 	}
-	return Credentials{}, idcInstance{}, fmt.Errorf("getting %q credentials for %s from %s IDC: %w; %s IDC also failed: %v", roleName, label, primary.Name, err, secondary.Name, secondaryErr)
+	if errors.Is(err, errPermissionSetNotAvailable) && errors.Is(secondaryErr, errPermissionSetNotAvailable) {
+		return Credentials{}, idcInstance{}, fmt.Errorf("%w: getting %q credentials for %s from %s IDC: %v; %s IDC also failed: %v", errPermissionSetUnavailableEverywhere, roleName, label, primary.Name, err, secondary.Name, secondaryErr)
+	}
+	return Credentials{}, idcInstance{}, fmt.Errorf("getting %q credentials for %s from %s IDC: %w; %s IDC also failed: %w", roleName, label, primary.Name, err, secondary.Name, secondaryErr)
 }
 
 func preferredIDCInstances(_ string) (idcInstance, idcInstance) {
@@ -196,7 +218,6 @@ func normalizeIDCRole(role string) (string, error) {
 
 func substrateBaseCredentials() (Credentials, error) {
 	cmd := "substrate credentials --format json --force"
-	log.Print("running: ", cmd)
 	byteValue, err := script.NewPipe().WithStderr(os.Stderr).Exec(cmd).Bytes()
 	if err != nil {
 		return Credentials{}, err
@@ -213,7 +234,6 @@ func substrateAssumeRole(role RoleData) (Credentials, error) {
 	baseCreds.SetEnv()
 	cmd := fmt.Sprintf("substrate assume-role --environment %s --domain %s --quality %s --role %s --format json",
 		role.Environment, role.Domain, role.Quality, role.Role)
-	log.Print("running: ", cmd)
 	byteValue, err := script.NewPipe().WithStderr(os.Stderr).Exec(cmd).Bytes()
 	if err != nil {
 		return Credentials{}, err
@@ -234,7 +254,6 @@ func substrateSpecialCredentials(name string) (Credentials, error) {
 	} else {
 		cmd = fmt.Sprintf("substrate assume-role --special %s --format json", name)
 	}
-	log.Print("running: ", cmd)
 	byteValue, err := script.NewPipe().WithStderr(os.Stderr).Exec(cmd).Bytes()
 	if err != nil {
 		return Credentials{}, err
