@@ -32,6 +32,23 @@ used by quikstrate. The first credential request for an IDC session may open a b
 `aws sso login`. AWS CLI stores each session's SSO token in `~/.aws/sso/cache/` and reuses it until
 it expires.
 
+On a Stripe devbox, preserve the devbox's native AWS authentication while configuring the named
+profiles and Kubernetes contexts:
+
+```bash
+quikstrate configure --preserve-aws-auth
+```
+
+The equivalent environment override is useful for automated devbox setup:
+
+```bash
+QUIKSTRATE_PRESERVE_AWS_AUTH=true quikstrate configure
+```
+
+This removes SSO sessions and `credential_process` values installed by earlier quikstrate runs,
+but preserves unrelated AWS configuration. The profiles continue through the devbox's native AWS
+credential provider chain.
+
 ## Credential behavior
 
 - Continue to use `quikstrate assume`, `quikstrate credentials`, `aws --profile ...`, and existing Kubernetes contexts.
