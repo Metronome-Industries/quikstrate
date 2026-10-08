@@ -1,6 +1,7 @@
 package creds
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
 	"encoding/json"
@@ -170,9 +171,14 @@ func getSSOToken(sessionName, startURL, region string) (ssoToken, error) {
 	}
 	cmd := awsCommand("aws", "sso", "login", "--sso-session", sessionName)
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stderr // must use stderr so login prompts don't pollute eval $() captures
-	cmd.Stderr = os.Stderr
+	var loginOutput bytes.Buffer
+	cmd.Stdout = &loginOutput
+	cmd.Stderr = &loginOutput
 	if err := cmd.Run(); err != nil {
+		details := strings.TrimSpace(loginOutput.String())
+		if details != "" {
+			return ssoToken{}, fmt.Errorf("aws sso login --sso-session %s: %w: %s", sessionName, err, details)
+		}
 		return ssoToken{}, fmt.Errorf("aws sso login --sso-session %s: %w", sessionName, err)
 	}
 	token, err = readSSOToken(sessionName)
