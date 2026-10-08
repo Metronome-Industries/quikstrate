@@ -128,3 +128,52 @@ func TestUpdateManagedAWSConfigIsIdempotent(t *testing.T) {
 		t.Fatalf("managed config is not idempotent:\nfirst:\n%s\nsecond:\n%s", first, second)
 	}
 }
+
+func TestUpdateManagedAWSConfigRecognizesInlineSectionComments(t *testing.T) {
+	input := `[profile staging-api]
+credential_process = /bin/quikstrate assume -e staging -d api -f json
+region = us-west-2
+
+[profile mainland-engineersreadonly]; this is a valid comment
+sso_session    = SpaceCommander
+sso_account_id = 030465607062
+sso_role_name  = engineersreadonly
+region         = us-west-2
+output         = json
+`
+	managed := []awsManagedSection{
+		{header: "[profile staging-api]", values: [][2]string{{"credential_process", "/bin/quikstrate assume -e staging -d api -f json"}, {"region", "us-west-2"}}},
+	}
+
+	got := updateManagedAWSConfig(input, managed, true)
+	stripeProfile := `[profile mainland-engineersreadonly]; this is a valid comment
+sso_session    = SpaceCommander
+sso_account_id = 030465607062
+sso_role_name  = engineersreadonly
+region         = us-west-2
+output         = json`
+	if !strings.Contains(got, stripeProfile) {
+		t.Errorf("profile with an inline section comment was modified:\n%s", got)
+	}
+	if strings.Index(got, awsManagedStart) > strings.Index(got, "[profile mainland-engineersreadonly]") {
+		t.Errorf("managed values were moved into the following profile:\n%s", got)
+	}
+}
+
+func TestUpdateManagedAWSConfigPreservesCommentOnManagedSection(t *testing.T) {
+	input := `[profile staging-api] # configured for local development
+credential_process = old-provider
+region = eu-west-1
+`
+	managed := []awsManagedSection{
+		{header: "[profile staging-api]", values: [][2]string{{"credential_process", "/bin/quikstrate assume -e staging -d api -f json"}, {"region", "us-west-2"}}},
+	}
+
+	got := updateManagedAWSConfig(input, managed, true)
+	if !strings.Contains(got, "[profile staging-api] # configured for local development") {
+		t.Errorf("managed section lost its inline comment:\n%s", got)
+	}
+	if strings.Count(got, "[profile staging-api]") != 1 {
+		t.Errorf("managed section with an inline comment was duplicated:\n%s", got)
+	}
+}

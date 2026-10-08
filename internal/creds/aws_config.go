@@ -11,8 +11,9 @@ const (
 )
 
 type awsConfigSection struct {
-	header string
-	lines  []string
+	header     string
+	headerLine string
+	lines      []string
 }
 
 type awsManagedSection struct {
@@ -65,14 +66,33 @@ func updateManagedAWSConfig(content string, managed []awsManagedSection, prune b
 func parseAWSConfig(content string) []awsConfigSection {
 	sections := []awsConfigSection{{}}
 	for _, line := range strings.Split(strings.TrimSuffix(content, "\n"), "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
-			sections = append(sections, awsConfigSection{header: trimmed})
+		if header, ok := parseAWSSectionHeader(line); ok {
+			sections = append(sections, awsConfigSection{header: header, headerLine: line})
 			continue
 		}
 		sections[len(sections)-1].lines = append(sections[len(sections)-1].lines, line)
 	}
 	return sections
+}
+
+// parseAWSSectionHeader returns the canonical section name while permitting
+// AWS-supported inline comments after the closing bracket. Keeping the
+// canonical name separate from the original line lets us match a managed
+// profile without discarding its comment.
+func parseAWSSectionHeader(line string) (string, bool) {
+	trimmed := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmed, "[") {
+		return "", false
+	}
+	closingBracket := strings.IndexByte(trimmed, ']')
+	if closingBracket == -1 {
+		return "", false
+	}
+	remainder := strings.TrimSpace(trimmed[closingBracket+1:])
+	if remainder != "" && !strings.HasPrefix(remainder, ";") && !strings.HasPrefix(remainder, "#") {
+		return "", false
+	}
+	return trimmed[:closingBracket+1], true
 }
 
 func removeManagedAWSValues(lines []string) ([]string, bool) {
@@ -183,7 +203,11 @@ func renderAWSConfig(sections []awsConfigSection) string {
 	for _, section := range sections {
 		var block []string
 		if section.header != "" {
-			block = append(block, section.header)
+			headerLine := section.headerLine
+			if headerLine == "" {
+				headerLine = section.header
+			}
+			block = append(block, headerLine)
 		}
 		block = append(block, trimBlankAWSLines(section.lines)...)
 		if len(block) > 0 {
