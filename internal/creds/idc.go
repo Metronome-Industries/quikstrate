@@ -1,6 +1,7 @@
 package creds
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
 	"encoding/json"
@@ -17,8 +18,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	awscredentials "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sso"
 	"github.com/aws/aws-sdk-go-v2/service/sso/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	smithy "github.com/aws/smithy-go"
 	version "github.com/hashicorp/go-version"
 )
@@ -41,6 +44,7 @@ var (
 	getIDCCredentialsForInstance = func(instance idcInstance, accountID, roleName string) (Credentials, error) {
 		return getSSORoleCredentials(instance.Name, instance.StartURL, instance.Region, accountID, roleName)
 	}
+	assumeIAMRoleCredentials = assumeIAMRole
 )
 
 func alternateRegionEnabled() bool {
@@ -149,9 +153,14 @@ func getSSOToken(sessionName, startURL, region string) (ssoToken, error) {
 	}
 	cmd := awsCommand("aws", "sso", "login", "--sso-session", sessionName)
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stderr // must use stderr so login prompts don't pollute eval $() captures
-	cmd.Stderr = os.Stderr
+	var loginOutput bytes.Buffer
+	cmd.Stdout = &loginOutput
+	cmd.Stderr = &loginOutput
 	if err := cmd.Run(); err != nil {
+		details := strings.TrimSpace(loginOutput.String())
+		if details != "" {
+			return ssoToken{}, fmt.Errorf("aws sso login --sso-session %s: %w: %s", sessionName, err, details)
+		}
 		return ssoToken{}, fmt.Errorf("aws sso login --sso-session %s: %w", sessionName, err)
 	}
 	token, err = readSSOToken(sessionName)
@@ -184,7 +193,10 @@ func checkAWSCLIVersion() error {
 	return nil
 }
 
-var errPermissionSetNotAvailable = errors.New("permission set not available")
+var (
+	errPermissionSetNotAvailable          = errors.New("permission set not available")
+	errPermissionSetUnavailableEverywhere = errors.New("permission set unavailable in all configured IDC instances")
+)
 
 func isUnmodeledForbidden(err error) bool {
 	var apiErr smithy.APIError
@@ -231,6 +243,41 @@ func exchangeSSOToken(region, accountID, roleName string, token ssoToken) (Crede
 		SecretAccessKey: aws.ToString(resp.RoleCredentials.SecretAccessKey),
 		SessionToken:    aws.ToString(resp.RoleCredentials.SessionToken),
 		Expiration:      time.UnixMilli(resp.RoleCredentials.Expiration),
+		Version:         1,
+	}, nil
+}
+
+func assumeIAMRole(baseCreds Credentials, accountID, roleName string) (Credentials, error) {
+	cfg, err := awsconfig.LoadDefaultConfig(
+		context.Background(),
+		awsconfig.WithRegion("us-west-2"),
+		awsconfig.WithCredentialsProvider(awscredentials.NewStaticCredentialsProvider(
+			baseCreds.AccessKeyId,
+			baseCreds.SecretAccessKey,
+			baseCreds.SessionToken,
+		)),
+	)
+	if err != nil {
+		return Credentials{}, err
+	}
+
+	sessionName := os.Getenv("USER")
+	if sessionName == "" {
+		sessionName = "quikstrate"
+	}
+	resp, err := sts.NewFromConfig(cfg).AssumeRole(context.Background(), &sts.AssumeRoleInput{
+		RoleArn:         aws.String(fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, roleName)),
+		RoleSessionName: aws.String(sessionName),
+	})
+	if err != nil {
+		return Credentials{}, err
+	}
+
+	return Credentials{
+		AccessKeyId:     aws.ToString(resp.Credentials.AccessKeyId),
+		SecretAccessKey: aws.ToString(resp.Credentials.SecretAccessKey),
+		SessionToken:    aws.ToString(resp.Credentials.SessionToken),
+		Expiration:      aws.ToTime(resp.Credentials.Expiration),
 		Version:         1,
 	}, nil
 }

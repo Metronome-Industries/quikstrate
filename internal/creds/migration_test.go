@@ -2,6 +2,7 @@ package creds
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -150,6 +151,70 @@ func TestIDCFallbackAndCombinedError(t *testing.T) {
 	_, err = getIDCRoleCredentials("407752757973", "admin", "staging-api")
 	if err == nil || !strings.Contains(err.Error(), "stripe IDC") || !strings.Contains(err.Error(), "metronome IDC") {
 		t.Fatalf("combined error missing context: %v", err)
+	}
+}
+
+func TestCustomIDCRoleFallsBackToSTSAssumeRole(t *testing.T) {
+	withConfigFile(t, quikstrateConfig{PreferredIDCInstance: "stripe"})
+	oldGet := getIDCCredentialsForInstance
+	oldAssume := assumeIAMRoleCredentials
+	t.Cleanup(func() {
+		getIDCCredentialsForInstance = oldGet
+		assumeIAMRoleCredentials = oldAssume
+	})
+
+	getIDCCredentialsForInstance = func(instance idcInstance, accountID, roleName string) (Credentials, error) {
+		if accountID == staticSpecialAccounts["substrate"] && roleName == idcRoleAdmin {
+			return Credentials{AccessKeyId: "base-" + instance.Name}, nil
+		}
+		return Credentials{}, fmt.Errorf("%w: no %q permission set for account %s", errPermissionSetNotAvailable, roleName, accountID)
+	}
+	assumeIAMRoleCredentials = func(base Credentials, accountID, roleName string) (Credentials, error) {
+		if base.AccessKeyId != "base-stripe" {
+			t.Fatalf("base credentials = %q; want Stripe admin credentials", base.AccessKeyId)
+		}
+		if accountID != "008444403661" || roleName != "devbox-role-us-west-2" {
+			t.Fatalf("assume target = %s/%s", accountID, roleName)
+		}
+		return Credentials{AccessKeyId: "assumed"}, nil
+	}
+
+	role := RoleData{Environment: "staging", Domain: "graphql", Quality: "alpha", Role: "devbox-role-us-west-2"}
+	creds, instance, err := getIDCCredentialsWithInstance(role)
+	if err != nil || creds.AccessKeyId != "assumed" || instance.Name != "stripe" {
+		t.Fatalf("fallback: %#v, %s, %v", creds, instance.Name, err)
+	}
+}
+
+func TestCustomSpecialRoleFallsBackToSTSAssumeRole(t *testing.T) {
+	withConfigFile(t, quikstrateConfig{PreferredIDCInstance: "stripe"})
+	oldGet := getIDCCredentialsForInstance
+	oldAssume := assumeIAMRoleCredentials
+	t.Cleanup(func() {
+		getIDCCredentialsForInstance = oldGet
+		assumeIAMRoleCredentials = oldAssume
+	})
+
+	getIDCCredentialsForInstance = func(instance idcInstance, accountID, roleName string) (Credentials, error) {
+		if roleName == idcRoleAdmin {
+			return Credentials{AccessKeyId: "base-" + instance.Name}, nil
+		}
+		return Credentials{}, fmt.Errorf("%w: no %q permission set for account %s", errPermissionSetNotAvailable, roleName, accountID)
+	}
+	assumeIAMRoleCredentials = func(base Credentials, accountID, roleName string) (Credentials, error) {
+		if base.AccessKeyId != "base-stripe" {
+			t.Fatalf("base credentials = %q; want Stripe admin credentials", base.AccessKeyId)
+		}
+		if accountID != staticSpecialAccounts["substrate"] || roleName != "devbox-role-us-west-2" {
+			t.Fatalf("assume target = %s/%s", accountID, roleName)
+		}
+		return Credentials{AccessKeyId: "assumed-special"}, nil
+	}
+
+	role := RoleData{SpecialAccount: "substrate", Role: "devbox-role-us-west-2"}
+	creds, instance, err := getIDCCredentialsWithInstance(role)
+	if err != nil || creds.AccessKeyId != "assumed-special" || instance.Name != "stripe" {
+		t.Fatalf("fallback: %#v, %s, %v", creds, instance.Name, err)
 	}
 }
 
