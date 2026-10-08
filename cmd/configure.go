@@ -30,9 +30,9 @@ var configureCmd = &cobra.Command{
 }
 
 func init() {
-	configureCmd.Flags().BoolP("clean", "c", false, "removes existing config files before configuring")
+	configureCmd.Flags().BoolP("clean", "c", false, "rebuilds quikstrate configuration and kubeconfig without deleting unrelated AWS config")
 	configureCmd.Flags().Bool("check", false, "checks if this command has been run before")
-	configureCmd.Flags().BoolP("dryrun", "d", false, "removes existing config files before configuring")
+	configureCmd.Flags().BoolP("dryrun", "d", false, "prints configuration changes without applying them")
 	configureCmd.Flags().Bool("use-identitycenter", false, "use IAM Identity Center as the credential source")
 	configureCmd.Flags().Bool("use-substrate", false, "use Substrate as the credential source (pair with --clean to hard delete Identity Center settings)")
 	configureCmd.Flags().Bool("preserve-aws-auth", false, "configure AWS profiles and Kubernetes contexts without replacing the existing AWS authentication")

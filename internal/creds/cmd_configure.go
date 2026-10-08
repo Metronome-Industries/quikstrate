@@ -117,97 +117,70 @@ func preserveAWSAuthEnabled(flagEnabled bool) (bool, error) {
 
 func configureAWSConfig(environments, domains []string) error {
 	log.Print("\nConfiguring aws config")
-	if configClean {
-		log.Print("Removing existing aws config")
-		os.Remove(awsConfigFile)
-	}
 
 	// reverse order so staging is before prod
 	sort.Sort(sort.Reverse(sort.StringSlice(environments)))
 
-	if configPreserveAWSAuth {
-		if err := removeQuikstrateAWSAuth(); err != nil {
-			return err
-		}
-	} else if usingIDC() {
+	var managed []awsManagedSection
+	if !configPreserveAWSAuth && usingIDC() {
 		for _, instance := range []idcInstance{metronomeIDC, activeStripeIDC()} {
-			if err := writeSSOSessionConfig(instance.Name, instance.StartURL, instance.Region); err != nil {
-				return err
-			}
+			managed = append(managed, awsManagedSection{
+				header: fmt.Sprintf("[sso-session %s]", instance.Name),
+				values: [][2]string{
+					{"sso_start_url", instance.StartURL},
+					{"sso_region", instance.Region},
+					{"sso_registration_scopes", "sso:account:access"},
+				},
+			})
 		}
 	}
 
 	for _, environment := range environments {
 		for _, domain := range domains {
 			profile := fmt.Sprintf("%s-%s", environment, domain)
-			credentialProcess := fmt.Sprintf("\"%s assume -e %s -d %s -f json\"", binaryPath, environment, domain)
-			setAWSProfile(profile, credentialProcess, awsRegion)
+			credentialProcess := fmt.Sprintf("%s assume -e %s -d %s -f json", binaryPath, environment, domain)
+			managed = append(managed, managedAWSProfile(profile, credentialProcess))
 		}
 	}
 
-	setAWSProfile("management", fmt.Sprintf("\"%s assume --management -f json\"", binaryPath), awsRegion)
+	managed = append(managed, managedAWSProfile("management", fmt.Sprintf("%s assume --management -f json", binaryPath)))
 	for _, domain := range specialDomains {
-		setAWSProfile(domain, fmt.Sprintf("\"%s assume --special %s -f json\"", binaryPath, domain), awsRegion)
+		managed = append(managed, managedAWSProfile(domain, fmt.Sprintf("%s assume --special %s -f json", binaryPath, domain)))
 	}
 
+	defaultValues := [][2]string{}
 	if !configPreserveAWSAuth {
-		setAWSConfigValue("default", "credential_process", fmt.Sprintf("\"%s credentials -f json\"", binaryPath))
+		defaultValues = append(defaultValues, [2]string{"credential_process", fmt.Sprintf("%s credentials -f json", binaryPath)})
 	}
-	setAWSConfigValue("default", "region", awsRegion)
+	defaultValues = append(defaultValues, [2]string{"region", awsRegion})
+	managed = append(managed, awsManagedSection{header: "[default]", values: defaultValues})
+
+	if configDryrun {
+		log.Printf("would update quikstrate-managed values in %s", awsConfigFile)
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(awsConfigFile), 0700); err != nil {
+		return fmt.Errorf("creating AWS config directory: %w", err)
+	}
+	contents, err := os.ReadFile(awsConfigFile)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("reading %s: %w", awsConfigFile, err)
+	}
+	updated := updateManagedAWSConfig(string(contents), managed, true)
+	if err := os.WriteFile(awsConfigFile, []byte(updated), 0600); err != nil {
+		return fmt.Errorf("writing %s: %w", awsConfigFile, err)
+	}
 	return nil
 }
 
-func setAWSProfile(name, credentialProcess, region string) {
+func managedAWSProfile(name, credentialProcess string) awsManagedSection {
 	log.Printf("Configuring profile %s\n", name)
+	values := [][2]string{}
 	if !configPreserveAWSAuth {
-		setAWSConfigValue(name, "credential_process", credentialProcess)
+		values = append(values, [2]string{"credential_process", credentialProcess})
 	}
-	setAWSConfigValue(name, "region", region)
-}
-
-// removeQuikstrateAWSAuth removes authentication installed by previous configure
-// runs while preserving unrelated AWS configuration and the named profiles that
-// devboxes use with their native credential provider chain.
-func removeQuikstrateAWSAuth() error {
-	if configDryrun {
-		log.Printf("would remove quikstrate credential_process values and SSO sessions from %s", awsConfigFile)
-		return nil
-	}
-
-	contents, err := os.ReadFile(awsConfigFile)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", awsConfigFile, err)
-	}
-
-	content := string(contents)
-	for _, sessionName := range []string{metronomeIDC.Name, stripeIDC.Name, stripeAlternateIDC.Name} {
-		content = removeSSOSession(content, sessionName)
-	}
-
-	var out strings.Builder
-	for _, line := range strings.Split(content, "\n") {
-		trimmed := strings.TrimSpace(line)
-		key, value, found := strings.Cut(trimmed, "=")
-		if found && strings.TrimSpace(key) == "credential_process" && strings.Contains(value, "quikstrate") {
-			continue
-		}
-		out.WriteString(line)
-		out.WriteByte('\n')
-	}
-
-	return os.WriteFile(awsConfigFile, []byte(out.String()), 0600)
-}
-
-func setAWSConfigValue(profile, key, value string) {
-	cmd := fmt.Sprintf("aws configure set profile.%s.%s %s", profile, key, value)
-	if configDryrun {
-		log.Print(cmd)
-	} else {
-		script.Exec(fmt.Sprintf("aws configure set profile.%s.%s %s", profile, key, value)).Stdout()
-	}
+	values = append(values, [2]string{"region", awsRegion})
+	return awsManagedSection{header: fmt.Sprintf("[profile %s]", name), values: values}
 }
 
 func configureKubeConfig(environments, domains []string) error {

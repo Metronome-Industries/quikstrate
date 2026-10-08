@@ -151,7 +151,8 @@ To persist the selection:
 quikstrate configure --use-substrate
 ```
 
-To delete and rebuild quikstrate, AWS, and Kubernetes configuration in Substrate mode:
+To rebuild quikstrate-owned AWS configuration and Kubernetes configuration in Substrate mode
+without deleting unrelated AWS profiles or values:
 
 ```bash
 quikstrate configure --use-substrate --clean
