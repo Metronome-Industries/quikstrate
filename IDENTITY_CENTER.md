@@ -56,7 +56,7 @@ credential provider chain.
 - Read-only IDC callers must use `--role engineersreadonly`; `Auditor` is a Substrate role name.
 - For a custom `--role`, Quikstrate first looks for a matching IDC permission set. If neither IDC
   instance provides one, it uses the base admin credentials to assume an IAM role of that name in
-  the target service account.
+  the target service or special account.
 - Credential cache filenames identify the IDC endpoint that issued them: `*-metronome-idc.json`,
   `*-stripe-idc.json`, or `*-stripe-us-east-2-idc.json`.
 - Quikstrate does not fall back to Substrate automatically.

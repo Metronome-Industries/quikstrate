@@ -132,7 +132,7 @@ func getIDCCredentialsWithInstance(role RoleData) (Credentials, idcInstance, err
 		if err != nil {
 			return Credentials{}, idcInstance{}, err
 		}
-		return getIDCRoleCredentialsWithInstance(accountID, roleName, role.SpecialAccount)
+		return getIDCOrAssumeIAMRoleCredentials(accountID, roleName, role.SpecialAccount)
 	}
 
 	accountID, err := lookupServiceAccountID(role.Domain, role.Environment)
@@ -143,7 +143,12 @@ func getIDCCredentialsWithInstance(role RoleData) (Credentials, idcInstance, err
 	if err != nil {
 		return Credentials{}, idcInstance{}, err
 	}
-	label := fmt.Sprintf("%s-%s", role.Environment, role.Domain)
+	return getIDCOrAssumeIAMRoleCredentials(
+		accountID, roleName, fmt.Sprintf("%s-%s", role.Environment, role.Domain),
+	)
+}
+
+func getIDCOrAssumeIAMRoleCredentials(accountID, roleName, label string) (Credentials, idcInstance, error) {
 	creds, instance, err := getIDCRoleCredentialsWithInstance(accountID, roleName, label)
 	if err == nil || !errors.Is(err, errPermissionSetUnavailableEverywhere) || roleName == idcRoleAdmin || roleName == idcRoleReadOnly {
 		return creds, instance, err
