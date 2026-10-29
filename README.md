@@ -25,6 +25,10 @@ quikstrate -h
 # fetch and cache default AWS credentials
 quikstrate credentials
 
+# fetch production credentials, or retain the original admin credentials
+quikstrate credentials -e prod
+quikstrate credentials -r Admin
+
 # updates ~/.aws/config and ~/.kube/config
 quikstrate configure
 ```
@@ -33,7 +37,13 @@ To see what version of quikstrate you are running, run: `brew info quikstrate`
 
 ## AWS credentials
 
-By default, `quikstrate` fetches short-lived AWS credentials through IAM Identity Center (IDC). Set up the required AWS profiles, Kubernetes contexts, and SSO session configuration with:
+By default, `quikstrate` fetches short-lived AWS credentials through IAM Identity Center (IDC).
+
+`quikstrate credentials` uses the `staging-metdevops` role in the substrate account.
+Use `-e prod` for `prod-metdevops`, `-r ROLE` to select another role, or `-r Admin`
+for the original admin credentials. Each role has a separate credential cache.
+
+Set up the required AWS profiles, Kubernetes contexts, and SSO session configuration with:
 
 ```bash
 quikstrate configure
