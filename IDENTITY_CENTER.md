@@ -52,8 +52,8 @@ credential provider chain.
 ## Credential behavior
 
 - Continue to use `quikstrate assume`, `quikstrate credentials`, `aws --profile ...`, and existing Kubernetes contexts.
-- `quikstrate credentials` uses `staging-metdevops` in the substrate account by default. Use
-  `--environment prod` for `prod-metdevops`, or `--role Admin` for the original admin credentials.
+- `quikstrate credentials` uses `staging-metdevops` in the deploy account by default. Use
+  `--environment prod` for `prod-metdevops`, or `--role admin` for the original substrate account credentials.
 - `Administrator` maps to IDC's `admin` permission set.
 - Read-only IDC callers must use `--role engineersreadonly`; `Auditor` is a Substrate role name.
 - For a custom `--role`, Quikstrate first looks for a matching IDC permission set. If neither IDC
@@ -146,6 +146,9 @@ migrated. For one command:
 ```bash
 USE_SUBSTRATE=true quikstrate credentials
 ```
+
+Without `-e` or `-r`, this fetches the original base Substrate credentials.
+Specify `-e` to select an environment role, or `-r` to select a role explicitly.
 
 To persist the selection:
 

@@ -12,9 +12,7 @@ func CredentialsCmd(cmd *cobra.Command, args []string) {
 	format := cmd.Flag("format").Value.String()
 	force, _ := cmd.Flags().GetBool("force")
 	check, _ := cmd.Flags().GetBool("check")
-	environment, _ := cmd.Flags().GetString("environment")
-	role, _ := cmd.Flags().GetString("role")
-	roleData, err := credentialsRoleData(environment, role)
+	roleData, err := credentialsRoleDataFromCommand(cmd)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -36,17 +34,26 @@ func CredentialsCmd(cmd *cobra.Command, args []string) {
 	creds.Print(format)
 }
 
+func credentialsRoleDataFromCommand(cmd *cobra.Command) (RoleData, error) {
+	if !usingIDC() && !cmd.Flags().Changed("environment") && !cmd.Flags().Changed("role") {
+		return RoleData{}, nil
+	}
+	environment, _ := cmd.Flags().GetString("environment")
+	role, _ := cmd.Flags().GetString("role")
+	return credentialsRoleData(environment, role)
+}
+
 func credentialsRoleData(environment, role string) (RoleData, error) {
 	if _, ok := EnvironmentMap[environment]; !ok {
 		return RoleData{}, fmt.Errorf("unknown environment %q", environment)
 	}
-	if role == "Admin" {
+	if role == "admin" || role == "Admin" {
 		return RoleData{}, nil
 	}
 	if role == "" {
 		role = environment + "-metdevops"
 	}
-	return RoleData{SpecialAccount: "substrate", Role: role}, nil
+	return RoleData{SpecialAccount: "deploy", Role: role}, nil
 }
 
 func credentialsCacheFile(role RoleData) string {

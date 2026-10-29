@@ -150,7 +150,7 @@ func configureAWSConfig(environments, domains []string) error {
 
 	defaultValues := [][2]string{}
 	if !configPreserveAWSAuth {
-		defaultValues = append(defaultValues, [2]string{"credential_process", fmt.Sprintf("%s credentials -f json", binaryPath)})
+		defaultValues = append(defaultValues, [2]string{"credential_process", fmt.Sprintf("%s credentials -e staging -r staging-metdevops -f json", binaryPath)})
 	}
 	defaultValues = append(defaultValues, [2]string{"region", awsRegion})
 	managed = append(managed, awsManagedSection{header: "[default]", values: defaultValues})

@@ -205,12 +205,12 @@ func getSubstrateCredentials(role RoleData) (Credentials, error) {
 		return substrateBaseCredentials()
 	}
 	if role.SpecialAccount != "" {
-		if role.SpecialAccount == "substrate" && role.Role != "" {
+		if role.SpecialAccount == "deploy" && role.Role != substrateRoleAdmin {
 			baseCreds, err := refreshCredentials(RoleData{}, DefaultCredsFile)
 			if err != nil {
 				return Credentials{}, fmt.Errorf("getting base credentials to assume IAM role %q: %w", role.Role, err)
 			}
-			return assumeIAMRoleCredentials(baseCreds, staticSpecialAccounts["substrate"], role.Role)
+			return assumeIAMRoleCredentials(baseCreds, staticSpecialAccounts["deploy"], role.Role)
 		}
 		return substrateSpecialCredentials(role.SpecialAccount)
 	}

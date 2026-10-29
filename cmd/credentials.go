@@ -8,9 +8,9 @@ import (
 var credentialsCmd = &cobra.Command{
 	Use:   "credentials",
 	Short: "Return cached credentials, if expired fetch and cache new ones",
-	Long: `Fetch and cache environment-scoped credentials for the substrate account.
+	Long: `Fetch and cache environment-scoped credentials for the deploy account.
 The default environment is staging and the default role is <environment>-metdevops.
-Use --role Admin to fetch the original admin credentials. --force fetches new credentials every time.
+Use --role admin to fetch the original substrate account credentials. --force fetches new credentials every time.
 
 When using Identity Center, authentication is direct to Identity Center instead of Substrate.
 
@@ -22,7 +22,7 @@ alias creds="eval \$(quikstrate credentials)"`,
 
 func init() {
 	credentialsCmd.Flags().StringP("environment", "e", "staging", "credential environment (staging or prod)")
-	credentialsCmd.Flags().StringP("role", "r", "", "credential role (default: <environment>-metdevops; Admin for original behavior)")
+	credentialsCmd.Flags().StringP("role", "r", "", "credential role (default: <environment>-metdevops; admin for original behavior)")
 	credentialsCmd.Flags().StringP("format", "f", "export", "substrate environment")
 	credentialsCmd.Flags().Bool("force", false, "always fetch new credentials")
 	credentialsCmd.Flags().Bool("check", false, "check if credentials are expired, exit 0 if up-to-date otherwise exit 1`")
