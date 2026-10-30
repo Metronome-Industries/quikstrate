@@ -18,7 +18,7 @@ var rootCmd = &cobra.Command{
 		DisableDefaultCmd: true,
 	},
 	PersistentPostRun: func(cmd *cobra.Command, _ []string) {
-		if term.IsTerminal(int(os.Stderr.Fd())) && !isJSONFormat(cmd) {
+		if shouldCheckHomebrewUpdate(cmd, term.IsTerminal(int(os.Stderr.Fd()))) {
 			notifyHomebrewUpdate(cmd.Context(), filepath.Join(creds.CredsDir, "homebrew-update-check"), time.Now(), os.Stderr, runHomebrewOutdated)
 		}
 	},

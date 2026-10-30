@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,17 +44,60 @@ func TestHomebrewUpdateNoticeChecksOncePerDay(t *testing.T) {
 	}
 }
 
-func TestJSONFormatSkipsHomebrewCheck(t *testing.T) {
-	cmd := &cobra.Command{}
-	cmd.Flags().StringP("format", "f", "export", "")
-	if isJSONFormat(cmd) {
-		t.Fatal("export format should allow the update check")
+func TestHomebrewCheckEligibility(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		command     string
+		format      string
+		interactive bool
+		want        bool
+	}{
+		{name: "interactive command", command: "credentials", format: "export", interactive: true, want: true},
+		{name: "JSON credentials", command: "credentials", format: "json", interactive: true},
+		{name: "automated command", command: "credentials", format: "export"},
+		{name: "clean command", command: "clean", interactive: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := &cobra.Command{Use: tc.command}
+			if tc.format != "" {
+				cmd.Flags().StringP("format", "f", tc.format, "")
+			}
+			if got := shouldCheckHomebrewUpdate(cmd, tc.interactive); got != tc.want {
+				t.Fatalf("shouldCheckHomebrewUpdate() = %t, want %t", got, tc.want)
+			}
+		})
 	}
-	if err := cmd.Flags().Set("format", "json"); err != nil {
-		t.Fatal(err)
+}
+
+func TestConcurrentHomebrewChecksRunOnce(t *testing.T) {
+	cacheFile := filepath.Join(t.TempDir(), "homebrew-update-check")
+	now := time.Now()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var wg sync.WaitGroup
+	var output bytes.Buffer
+	calls := 0
+	run := func(context.Context) ([]byte, error) {
+		calls++
+		close(started)
+		<-release
+		return []byte("quikstrate\n"), nil
 	}
-	if !isJSONFormat(cmd) {
-		t.Fatal("JSON format should skip the update check")
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		notifyHomebrewUpdate(context.Background(), cacheFile, now, &output, run)
+	}()
+	<-started
+	go func() {
+		defer wg.Done()
+		notifyHomebrewUpdate(context.Background(), cacheFile, now, &output, run)
+	}()
+	close(release)
+	wg.Wait()
+	if calls != 1 || strings.Count(output.String(), "A newer Homebrew version") != 1 {
+		t.Fatalf("concurrent checks: calls=%d, notice=%q", calls, output.String())
 	}
 }
 
