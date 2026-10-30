@@ -40,7 +40,7 @@ To see what version of quikstrate you are running, run: `brew info quikstrate`
 By default, `quikstrate` fetches short-lived AWS credentials through IAM Identity Center (IDC).
 
 `quikstrate credentials` uses the `staging-metdevops` role in the deploy account.
-Use `-e prod` for `prod-metdevops`, `-r ROLE` to select another deploy account role,
+Use `-e prod` for `engineersreadonly`, `-r ROLE` to select another deploy account role,
 or `-r admin` for the original substrate account credentials. Each role has a
 separate credential cache.
 

@@ -51,7 +51,11 @@ func credentialsRoleData(environment, role string) (RoleData, error) {
 		return RoleData{}, nil
 	}
 	if role == "" {
-		role = environment + "-metdevops"
+		if environment == "prod" {
+			role = idcRoleReadOnly
+		} else {
+			role = environment + "-metdevops"
+		}
 	}
 	return RoleData{SpecialAccount: "deploy", Role: role}, nil
 }

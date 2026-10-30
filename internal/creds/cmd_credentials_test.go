@@ -14,7 +14,8 @@ func TestCredentialsRoleData(t *testing.T) {
 		wantBase                          bool
 	}{
 		{name: "staging default", environment: "staging", wantRole: "staging-metdevops"},
-		{name: "prod default", environment: "prod", wantRole: "prod-metdevops"},
+		{name: "prod default", environment: "prod", wantRole: "engineersreadonly"},
+		{name: "explicit prod metdevops", environment: "prod", role: "prod-metdevops", wantRole: "prod-metdevops"},
 		{name: "explicit role", environment: "prod", role: "custom-role", wantRole: "custom-role"},
 		{name: "legacy admin", environment: "prod", role: "admin", wantBase: true},
 		{name: "legacy Admin spelling", environment: "staging", role: "Admin", wantBase: true},
@@ -97,7 +98,7 @@ func TestEnvironmentCredentialsUseSeparateIDCCache(t *testing.T) {
 	if stagingFile == prod.GetFilename() || stagingFile == adminFile || prod.GetFilename() == adminFile {
 		t.Fatalf("credential caches overlap: %q, %q, %q", stagingFile, prod.GetFilename(), adminFile)
 	}
-	if !strings.Contains(stagingFile, "staging-metdevops") || !strings.Contains(prod.GetFilename(), "prod-metdevops") {
+	if !strings.Contains(stagingFile, "staging-metdevops") || !strings.Contains(prod.GetFilename(), "engineersreadonly") {
 		t.Fatalf("credential caches omit role names: %q, %q", stagingFile, prod.GetFilename())
 	}
 }
@@ -107,8 +108,8 @@ func TestEnvironmentCredentialsRequestRoleInDeployAccount(t *testing.T) {
 	previous := getIDCCredentialsForInstance
 	t.Cleanup(func() { getIDCCredentialsForInstance = previous })
 	getIDCCredentialsForInstance = func(_ idcInstance, accountID, roleName string) (Credentials, error) {
-		if accountID != staticSpecialAccounts["deploy"] || roleName != "prod-metdevops" {
-			t.Fatalf("requested %s/%s; want deploy account/prod-metdevops", accountID, roleName)
+		if accountID != staticSpecialAccounts["deploy"] || roleName != "engineersreadonly" {
+			t.Fatalf("requested %s/%s; want deploy account/engineersreadonly", accountID, roleName)
 		}
 		return Credentials{AccessKeyId: "environment"}, nil
 	}
