@@ -4,15 +4,46 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/metronome-industries/quikstrate/internal/creds"
 	"github.com/spf13/cobra"
 )
+
+func TestRootCommandReportsHomebrewUpdate(t *testing.T) {
+	oldCredsDir, oldTerminal, oldOutdated, oldStderr := creds.CredsDir, stderrIsTerminal, homebrewOutdated, os.Stderr
+	defer func() {
+		creds.CredsDir, stderrIsTerminal, homebrewOutdated, os.Stderr = oldCredsDir, oldTerminal, oldOutdated, oldStderr
+	}()
+	creds.CredsDir = t.TempDir()
+	stderrIsTerminal = func() bool { return true }
+	homebrewOutdated = func(context.Context) ([]byte, error) { return []byte("quikstrate\n"), nil }
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	os.Stderr = writer
+	cmd := &cobra.Command{Use: "credentials"}
+	cmd.SetContext(context.Background())
+	cmd.Flags().StringP("format", "f", "export", "")
+	rootCmd.PersistentPostRun(cmd, nil)
+	writer.Close()
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(output), "brew upgrade quikstrate") {
+		t.Fatalf("missing update notice: %q", output)
+	}
+}
 
 func TestHomebrewUpdateNoticeChecksOncePerDay(t *testing.T) {
 	cacheFile := filepath.Join(t.TempDir(), "quikstrate", "homebrew-update-check")
@@ -98,6 +129,33 @@ func TestConcurrentHomebrewChecksRunOnce(t *testing.T) {
 	wg.Wait()
 	if calls != 1 || strings.Count(output.String(), "A newer Homebrew version") != 1 {
 		t.Fatalf("concurrent checks: calls=%d, notice=%q", calls, output.String())
+	}
+}
+
+func TestHomebrewCheckSkipsHeldLock(t *testing.T) {
+	cacheFile := filepath.Join(t.TempDir(), "homebrew-update-check")
+	lock, err := os.OpenFile(cacheFile+".lock", os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+		t.Fatal(err)
+	}
+
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		notifyHomebrewUpdate(context.Background(), cacheFile, time.Now(), io.Discard, func(context.Context) ([]byte, error) {
+			return []byte("quikstrate\n"), nil
+		})
+	}()
+	select {
+	case <-finished:
+	case <-time.After(200 * time.Millisecond):
+		syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+		<-finished
+		t.Fatal("update check waited for a held lock")
 	}
 }
 

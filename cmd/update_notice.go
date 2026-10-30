@@ -27,7 +27,7 @@ func notifyHomebrewUpdate(ctx context.Context, cacheFile string, now time.Time, 
 		return
 	}
 	defer lock.Close()
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		return
 	}
 	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
@@ -56,7 +56,9 @@ func notifyHomebrewUpdate(ctx context.Context, cacheFile string, now time.Time, 
 }
 
 func runHomebrewOutdated(ctx context.Context) ([]byte, error) {
-	return exec.CommandContext(ctx, "brew", "outdated", "--formula", "--quiet", homebrewFormula).Output()
+	cmd := exec.CommandContext(ctx, "brew", "outdated", "--formula", "--quiet", homebrewFormula)
+	cmd.WaitDelay = time.Second
+	return cmd.Output()
 }
 
 func isJSONFormat(cmd *cobra.Command) bool {
