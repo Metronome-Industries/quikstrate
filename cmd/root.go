@@ -3,8 +3,12 @@ package cmd
 import (
 	"log"
 	"os"
+	"path/filepath"
+	"time"
 
+	"github.com/metronome-industries/quikstrate/internal/creds"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var rootCmd = &cobra.Command{
@@ -13,7 +17,15 @@ var rootCmd = &cobra.Command{
 	CompletionOptions: cobra.CompletionOptions{
 		DisableDefaultCmd: true,
 	},
+	PersistentPostRun: func(cmd *cobra.Command, _ []string) {
+		if shouldCheckHomebrewUpdate(cmd, stderrIsTerminal()) {
+			notifyHomebrewUpdate(cmd.Context(), filepath.Join(creds.CredsDir, "homebrew-update-check"), time.Now(), os.Stderr, homebrewOutdated)
+		}
+	},
 }
+
+var stderrIsTerminal = func() bool { return term.IsTerminal(int(os.Stderr.Fd())) }
+var homebrewOutdated = runHomebrewOutdated
 
 func Execute() {
 	err := rootCmd.Execute()
