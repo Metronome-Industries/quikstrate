@@ -29,7 +29,11 @@ quikstrate credentials
 quikstrate configure
 ```
 
-To see what version of quikstrate you are running, run: `brew info quikstrate`
+To see what version of quikstrate you are running, run: `brew info quikstrate`.
+On interactive runs, quikstrate checks the local Homebrew tap at most once per day and
+prints an update notice to stderr when a newer formula is available. Run `brew update`
+to refresh the tap, then `brew upgrade quikstrate` to install the update. Credential
+output and automated AWS credential processes are unaffected.
 
 ## AWS credentials
 
