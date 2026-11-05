@@ -48,6 +48,22 @@ values are delimited by `BEGIN/END QUIKSTRATE MANAGED VALUES` comments; unrelate
 profiles, values, and comments in `~/.aws/config` are preserved, including when
 `--clean` is used.
 
+Each named profile also gets an IAM Identity Center readonly companion with an
+`-engineersreadonly` suffix, such as `prod-api-engineersreadonly`,
+`management-engineersreadonly`, or `deploy-engineersreadonly`. These profiles
+request the `engineersreadonly` permission set in the same account. For example:
+
+```bash
+aws sts get-caller-identity --profile prod-api-engineersreadonly
+```
+
+Run `quikstrate configure` again after upgrading to create the companions.
+Existing profiles, the default profile, and Kubernetes contexts keep their current
+behavior. Readonly companions require IDC and are skipped with
+`--preserve-aws-auth` or `QUIKSTRATE_PRESERVE_AWS_AUTH=true`.
+`configure --check` checks for the companions when AWS authentication is managed;
+`configure --dryrun` displays the generated profile settings without applying them.
+
 See [IDENTITY_CENTER.md](IDENTITY_CENTER.md) for detailed setup, credential behavior, and troubleshooting during the migration from Substrate to Identity Center.
 
 ## Releasing

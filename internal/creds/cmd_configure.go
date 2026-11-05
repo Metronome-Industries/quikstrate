@@ -135,17 +135,13 @@ func configureAWSConfig(environments, domains []string) error {
 		}
 	}
 
-	for _, environment := range environments {
-		for _, domain := range domains {
-			profile := fmt.Sprintf("%s-%s", environment, domain)
-			credentialProcess := fmt.Sprintf("%s assume -e %s -d %s -f json", binaryPath, environment, domain)
-			managed = append(managed, managedAWSProfile(profile, credentialProcess))
-		}
+	profiles := managedAWSProfiles(environments, domains)
+	for _, profile := range profiles {
+		log.Printf("Configuring %s", profile.header)
 	}
-
-	managed = append(managed, managedAWSProfile("management", fmt.Sprintf("%s assume --management -f json", binaryPath)))
-	for _, domain := range specialDomains {
-		managed = append(managed, managedAWSProfile(domain, fmt.Sprintf("%s assume --special %s -f json", binaryPath, domain)))
+	managed = append(managed, profiles...)
+	if configPreserveAWSAuth {
+		log.Print("Skipping engineersreadonly companion profiles while preserving AWS authentication")
 	}
 
 	defaultValues := [][2]string{}
@@ -157,6 +153,7 @@ func configureAWSConfig(environments, domains []string) error {
 
 	if configDryrun {
 		log.Printf("would update quikstrate-managed values in %s", awsConfigFile)
+		log.Print(updateManagedAWSConfig("", managed, false))
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(awsConfigFile), 0700); err != nil {
@@ -173,8 +170,33 @@ func configureAWSConfig(environments, domains []string) error {
 	return nil
 }
 
+// managedAWSProfiles is shared by configuration and --check so both expect the
+// same named profiles. Readonly companions use the IDC permission set explicitly.
+func managedAWSProfiles(environments, domains []string) []awsManagedSection {
+	var profiles []awsManagedSection
+	for _, environment := range environments {
+		for _, domain := range domains {
+			name := fmt.Sprintf("%s-%s", environment, domain)
+			command := fmt.Sprintf("%s assume -e %s -d %s -f json", binaryPath, environment, domain)
+			profiles = append(profiles, managedAWSProfilePair(name, command)...)
+		}
+	}
+	profiles = append(profiles, managedAWSProfilePair("management", fmt.Sprintf("%s assume --management -f json", binaryPath))...)
+	for _, domain := range specialDomains {
+		profiles = append(profiles, managedAWSProfilePair(domain, fmt.Sprintf("%s assume --special %s -f json", binaryPath, domain))...)
+	}
+	return profiles
+}
+
+func managedAWSProfilePair(name, credentialProcess string) []awsManagedSection {
+	profiles := []awsManagedSection{managedAWSProfile(name, credentialProcess)}
+	if !configPreserveAWSAuth {
+		profiles = append(profiles, managedAWSProfile(name+"-"+idcRoleReadOnly, credentialProcess+" -r "+idcRoleReadOnly))
+	}
+	return profiles
+}
+
 func managedAWSProfile(name, credentialProcess string) awsManagedSection {
-	log.Printf("Configuring profile %s\n", name)
 	values := [][2]string{}
 	if !configPreserveAWSAuth {
 		values = append(values, [2]string{"credential_process", credentialProcess})
@@ -233,13 +255,8 @@ func checkConfig(environments, domains []string) error {
 	if err != nil {
 		return fmt.Errorf("%s doesn't exist", awsConfigFile)
 	}
-	for _, environment := range environments {
-		for _, domain := range domains {
-			profile := fmt.Sprintf("[profile %s-%s]", environment, domain)
-			if !strings.Contains(string(contents), profile) {
-				return fmt.Errorf("%s doesn't contain profile %s-%s", awsConfigFile, environment, domain)
-			}
-		}
+	if err := checkAWSProfiles(string(contents), environments, domains); err != nil {
+		return err
 	}
 
 	// simple ~/.kube/config check, validates contexts and users exist
@@ -267,6 +284,16 @@ func checkConfig(environments, domains []string) error {
 			if _, ok := config.AuthInfos[clusterName]; !ok {
 				return fmt.Errorf("%s doesn't contain user %s", kubeConfigFile, clusterName)
 			}
+		}
+	}
+	return nil
+}
+
+func checkAWSProfiles(contents string, environments, domains []string) error {
+	sections := parseAWSConfig(contents)
+	for _, profile := range managedAWSProfiles(environments, domains) {
+		if findAWSSection(sections, profile.header) == -1 {
+			return fmt.Errorf("%s doesn't contain %s", awsConfigFile, profile.header)
 		}
 	}
 	return nil

@@ -54,6 +54,11 @@ credential provider chain.
 - Continue to use `quikstrate assume`, `quikstrate credentials`, `aws --profile ...`, and existing Kubernetes contexts.
 - `Administrator` maps to IDC's `admin` permission set.
 - Read-only IDC callers must use `--role engineersreadonly`; `Auditor` is a Substrate role name.
+- `configure` creates an `-engineersreadonly` companion for each named AWS profile,
+  including service, management, audit, deploy, and network profiles. These companions
+  request `--role engineersreadonly` in the same account; they require IDC and are
+  skipped when preserving native AWS authentication. Existing Kubernetes contexts
+  continue to use their original profiles.
 - For a custom `--role`, Quikstrate first looks for a matching IDC permission set. If neither IDC
   instance provides one, it uses the base admin credentials to assume an IAM role of that name in
   the target service or special account.

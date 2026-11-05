@@ -14,6 +14,8 @@ var configureCmd = &cobra.Command{
 	Long: `This command loops through all environments and domains and sets up ~/.aws/config and ~/.kube/config to use this binary. It assumes you have already installed the aws and kubectl clis.
 	aws-cli:
 		- creates a profile for each environment and domain
+		- creates an IDC readonly companion with the -engineersreadonly suffix for each named profile
+		  (skipped when preserving existing AWS authentication)
 		- sets the region for each profile to "us-west-2" (configurable)
 		- sets the credential_process for each profile to this tool, allowing you to easily use cached credentials
 		- set the profile by:
