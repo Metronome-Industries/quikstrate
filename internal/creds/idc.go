@@ -21,6 +21,7 @@ import (
 	awscredentials "github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sso"
 	"github.com/aws/aws-sdk-go-v2/service/sso/types"
+	"github.com/aws/aws-sdk-go-v2/service/ssooidc"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	smithy "github.com/aws/smithy-go"
 	version "github.com/hashicorp/go-version"
@@ -45,6 +46,14 @@ var (
 		return getSSORoleCredentials(instance.Name, instance.StartURL, instance.Region, accountID, roleName)
 	}
 	assumeIAMRoleCredentials = assumeIAMRole
+	loginSSOSession          = runSSOLogin
+	createSSOToken           = func(region string, input *ssooidc.CreateTokenInput) (*ssooidc.CreateTokenOutput, error) {
+		cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(region))
+		if err != nil {
+			return nil, err
+		}
+		return ssooidc.NewFromConfig(cfg).CreateToken(context.Background(), input)
+	}
 )
 
 func alternateRegionEnabled() bool {
@@ -75,8 +84,12 @@ type ssoToken struct {
 }
 
 func (t ssoToken) expiry() (time.Time, error) {
+	return parseSSOTimestamp(t.ExpiresAt)
+}
+
+func parseSSOTimestamp(value string) (time.Time, error) {
 	// AWS CLI writes either RFC3339 "Z" suffix or a bare "UTC" suffix depending on version.
-	s := strings.TrimSuffix(t.ExpiresAt, "UTC")
+	s := strings.TrimSuffix(value, "UTC")
 	if !strings.HasSuffix(s, "Z") {
 		s += "Z"
 	}
@@ -85,7 +98,7 @@ func (t ssoToken) expiry() (time.Time, error) {
 
 func (t ssoToken) isValid() bool {
 	exp, err := t.expiry()
-	if err != nil {
+	if err != nil || t.AccessToken == "" {
 		return false
 	}
 	return time.Now().Add(defaultRefreshTrigger).Before(exp)
@@ -138,18 +151,116 @@ func writeSSOSessionConfig(sessionName, startURL, region string) error {
 	return os.WriteFile(awsConfigFile, []byte(content), 0600)
 }
 
-// getSSOToken returns a valid token for the given session, triggering an
-// interactive browser login if the cached token is missing or expired.
+// refreshSSOToken returns refreshed=false when interactive authentication is needed.
+// The pinned SDK provider only refreshes after expiry and clears omitted refresh
+// tokens, so call CreateToken directly to preserve our window and CLI cache state.
+func refreshSSOToken(sessionName, region string) (ssoToken, bool, error) {
+	data, err := os.ReadFile(tokenCachePath(sessionName))
+	if err != nil {
+		return ssoToken{}, false, errors.New("reading SSO refresh cache failed")
+	}
+	var state struct {
+		RefreshToken          string `json:"refreshToken"`
+		ClientID              string `json:"clientId"`
+		ClientSecret          string `json:"clientSecret"`
+		RegistrationExpiresAt string `json:"registrationExpiresAt"`
+	}
+	if json.Unmarshal(data, &state) != nil || state.RefreshToken == "" || state.ClientID == "" || state.ClientSecret == "" {
+		return ssoToken{}, false, nil
+	}
+	registrationExpiry, err := parseSSOTimestamp(state.RegistrationExpiresAt)
+	if err != nil || !time.Now().Before(registrationExpiry) {
+		return ssoToken{}, false, nil
+	}
+	resp, err := createSSOToken(region, &ssooidc.CreateTokenInput{
+		ClientId:     aws.String(state.ClientID),
+		ClientSecret: aws.String(state.ClientSecret),
+		RefreshToken: aws.String(state.RefreshToken),
+		GrantType:    aws.String("refresh_token"),
+	})
+	if err != nil {
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) {
+			switch apiErr.ErrorCode() {
+			case "InvalidGrantException", "InvalidClientException", "UnauthorizedClientException", "ExpiredTokenException":
+				return ssoToken{}, false, nil
+			}
+		}
+		// SDK errors may contain request/response details; do not expose secrets.
+		return ssoToken{}, false, errors.New("SSO token refresh failed; retry later")
+	}
+	if resp == nil {
+		return ssoToken{}, false, errors.New("SSO token refresh returned an invalid token")
+	}
+	token := ssoToken{
+		AccessToken: aws.ToString(resp.AccessToken),
+		ExpiresAt:   time.Now().UTC().Add(time.Duration(resp.ExpiresIn) * time.Second).Format(time.RFC3339),
+	}
+	if !token.isValid() {
+		return ssoToken{}, false, errors.New("SSO token refresh returned an invalid token")
+	}
+	// Retain all AWS CLI metadata, including a refresh token omitted by AWS.
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return ssoToken{}, false, errors.New("reading SSO refresh cache failed")
+	}
+	fields["accessToken"], _ = json.Marshal(token.AccessToken)
+	fields["expiresAt"], _ = json.Marshal(token.ExpiresAt)
+	if aws.ToString(resp.RefreshToken) != "" {
+		fields["refreshToken"], _ = json.Marshal(*resp.RefreshToken)
+	}
+	if err := writeSSOTokenCache(tokenCachePath(sessionName), fields); err != nil {
+		return ssoToken{}, false, errors.New("saving refreshed SSO token failed")
+	}
+	return token, true, nil
+}
+
+// writeSSOTokenCache replaces the cache only after a complete, private file is written.
+func writeSSOTokenCache(path string, fields map[string]json.RawMessage) error {
+	file, err := os.CreateTemp(filepath.Dir(path), ".quikstrate-sso-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(file.Name())
+	if err := json.NewEncoder(file).Encode(fields); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	return os.Rename(file.Name(), path)
+}
+
+// getSSOToken reuses or silently refreshes the cache before requesting browser login.
 func getSSOToken(sessionName, startURL, region string) (ssoToken, error) {
 	token, err := readSSOToken(sessionName)
-	if err == nil && token.isValid() {
-		return token, nil
+	if err == nil {
+		if token.isValid() {
+			return token, nil
+		}
+		if refreshedToken, refreshed, err := refreshSSOToken(sessionName, region); err != nil {
+			return ssoToken{}, err
+		} else if refreshed {
+			return refreshedToken, nil
+		}
 	}
-	if err := writeSSOSessionConfig(sessionName, startURL, region); err != nil {
+	if err := loginSSOSession(sessionName, startURL, region); err != nil {
 		return ssoToken{}, err
+	}
+	token, err = readSSOToken(sessionName)
+	if err != nil {
+		return ssoToken{}, fmt.Errorf("reading SSO token after login: %w", err)
+	}
+	return token, nil
+}
+
+func runSSOLogin(sessionName, startURL, region string) error {
+	if err := writeSSOSessionConfig(sessionName, startURL, region); err != nil {
+		return err
 	}
 	if err := checkAWSCLIVersion(); err != nil {
-		return ssoToken{}, err
+		return err
 	}
 	cmd := awsCommand("aws", "sso", "login", "--sso-session", sessionName)
 	cmd.Stdin = os.Stdin
@@ -159,15 +270,11 @@ func getSSOToken(sessionName, startURL, region string) (ssoToken, error) {
 	if err := cmd.Run(); err != nil {
 		details := strings.TrimSpace(loginOutput.String())
 		if details != "" {
-			return ssoToken{}, fmt.Errorf("aws sso login --sso-session %s: %w: %s", sessionName, err, details)
+			return fmt.Errorf("aws sso login --sso-session %s: %w: %s", sessionName, err, details)
 		}
-		return ssoToken{}, fmt.Errorf("aws sso login --sso-session %s: %w", sessionName, err)
+		return fmt.Errorf("aws sso login --sso-session %s: %w", sessionName, err)
 	}
-	token, err = readSSOToken(sessionName)
-	if err != nil {
-		return ssoToken{}, fmt.Errorf("reading SSO token after login: %w", err)
-	}
-	return token, nil
+	return nil
 }
 
 func checkAWSCLIVersion() error {
